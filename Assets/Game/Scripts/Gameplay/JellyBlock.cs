@@ -1,6 +1,7 @@
 using UnityEngine;
 using DG.Tweening;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 
 namespace Game.Gameplay
 {
@@ -322,6 +323,17 @@ namespace Game.Gameplay
                             if (c0Needed > 0) { cellColors[x, y] = c0; c0Needed--; }
                             else cellColors[x, y] = c1;
                         }
+
+                // Diagonal detection: [0,0]==[1,1] and [0,1]==[1,0] means checkerboard.
+                // Rearrange to a clean vertical split so same-color cells are always adjacent.
+                if (cellColors[0,0] == cellColors[1,1] &&
+                    cellColors[0,1] == cellColors[1,0] &&
+                    cellColors[0,0] != cellColors[0,1])
+                {
+                    string left = cellColors[0,0]; string right = cellColors[0,1];
+                    cellColors[0,0] = left;  cellColors[0,1] = left;
+                    cellColors[1,0] = right; cellColors[1,1] = right;
+                }
             }
             else
             {
@@ -407,6 +419,59 @@ namespace Game.Gameplay
                 .Append(transform.DOMove(targetPos, 0.45f).SetEase(Ease.InBack))
                 .Join(transform.DOScale(Vector3.zero, 0.45f).SetEase(Ease.InBack))
                 .OnComplete(() => { onComplete?.Invoke(); Destroy(gameObject); });
+        }
+
+        public Transform GetSubCellTransform(int x, int y)
+        {
+            if (JellyPrefab != null)
+                return _jellyInstances[x, y] != null ? _jellyInstances[x, y].transform : null;
+            return _renderers[x, y] != null ? _renderers[x, y].transform : null;
+        }
+
+        public UniTask FlashSubCellsAsync(HashSet<string> colorsToEliminate)
+        {
+            var tasks = new List<UniTask>();
+            for (int x = 0; x < 2; x++)
+            for (int y = 0; y < 2; y++)
+            {
+                if (!colorsToEliminate.Contains(cellColors[x, y])) continue;
+                Transform t = GetSubCellTransform(x, y);
+                if (t == null) continue;
+                var tcs = new UniTaskCompletionSource();
+                t.DOKill();
+                // Subtle pulse: +8% of current scale, returns to base — never covers adjacent cells
+                t.DOPunchScale(new Vector3(0.08f, 0.08f, 0f), 0.12f, 1, 0f)
+                    .OnComplete(() => tcs.TrySetResult());
+                tasks.Add(tcs.Task);
+            }
+            return tasks.Count > 0 ? UniTask.WhenAll(tasks) : UniTask.CompletedTask;
+        }
+
+        public UniTask PopSubCellsAsync(HashSet<string> colorsToEliminate)
+        {
+            var tasks = new List<UniTask>();
+            for (int x = 0; x < 2; x++)
+            for (int y = 0; y < 2; y++)
+            {
+                if (!colorsToEliminate.Contains(cellColors[x, y])) continue;
+                Transform t = GetSubCellTransform(x, y);
+                if (t == null) continue;
+                var tcs = new UniTaskCompletionSource();
+                t.DOKill();
+                t.DOScale(Vector3.zero, 0.14f)
+                    .SetEase(Ease.InBack)
+                    .OnComplete(() => tcs.TrySetResult());
+                tasks.Add(tcs.Task);
+            }
+            return UniTask.WhenAll(tasks);
+        }
+
+        public void PlayRefillBounce()
+        {
+            if (_visualParent == null) return;
+            _visualParent.DOKill(true);
+            _visualParent.localScale = Vector3.one;
+            _visualParent.DOPunchScale(new Vector3(0.22f, 0.22f, 0f), 0.32f, 5, 0.45f);
         }
 
         public void PlayPoof(System.Action onComplete)

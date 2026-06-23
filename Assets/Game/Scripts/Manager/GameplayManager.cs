@@ -59,10 +59,9 @@ namespace Game.Manager
 
                 case EGameplayState.LOSE:
                     Debug.Log("[GameplayManager] Level Lose");
-                    // Trigger Lose UI/Popup
                     if (UIManager.IsSingletonAlive)
                     {
-                        UIManager.I.Open("ResultPopup");
+                        UIManager.I.Open("LosePopup");
                     }
                     break;
 
@@ -70,7 +69,7 @@ namespace Game.Manager
                     Debug.Log("[GameplayManager] Level Result");
                     if (UIManager.IsSingletonAlive)
                     {
-                        UIManager.I.Open("ResultPopup");
+                        UIManager.I.Open("WinPopup");
                     }
                     break;
 

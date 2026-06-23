@@ -92,6 +92,8 @@ namespace Game.Manager
                     {
                         UIManager.I.Close("GamePlayMenu");
                         UIManager.I.Close("ResultPopup");
+                        UIManager.I.Close("WinPopup");
+                        UIManager.I.Close("LosePopup");
                     }
 
                     // Unload additive scene "Game"
@@ -166,6 +168,8 @@ namespace Game.Manager
                     {
                         UIManager.I.Close("GamePlayMenu");
                         UIManager.I.Close("ResultPopup");
+                        UIManager.I.Close("WinPopup");
+                        UIManager.I.Close("LosePopup");
                     }
 
                     // Unload scene "Game"

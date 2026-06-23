@@ -1,0 +1,47 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68084874e69e2b54fbe5a84a49333d47, type: 3}
+  m_Name: Level_13
+  m_EditorClassIdentifier: 
+  gridWidth: 5
+  gridHeight: 6
+  boardLayout: '0,0,-,0,0
+
+    0,0,0,0,0
+
+    0,0,0,0,0
+
+    0,0,0,0,0
+
+    0,0,0,0,0
+
+    0,0,-,0,0'
+  placedJellies: []
+  fillSeed: 178
+  fillRate: 0.7
+  weightOne: 0
+  weightTwo: 3
+  weightThree: 6
+  weightFour: 0
+  pickupWeightOne: 2
+  pickupWeightTwo: 3
+  pickupWeightThree: 5
+  pickupWeightFour: 4
+  maxColors: 8
+  pickupSlots: 2
+  targets:
+  - colorId: purple
+    count: 13
+  - colorId: green
+    count: 14
+  - colorId: pink
+    count: 15

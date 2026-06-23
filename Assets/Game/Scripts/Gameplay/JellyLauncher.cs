@@ -2,13 +2,15 @@ using UnityEngine;
 using DG.Tweening;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
+using Game.Manager;
+using Game.Data;
 
 namespace Game.Gameplay
 {
     public class JellyLauncher : MonoBehaviour
     {
         [Header("Launcher Settings")]
-        [SerializeField] private JellyGrid _grid;
+        [SerializeField] private JellyGrid  _grid;
         [SerializeField] private GameObject _blockBasePrefab;
         [SerializeField] private Transform[] _spawnSlots;
 
@@ -16,78 +18,99 @@ namespace Game.Gameplay
         [SerializeField] private GameObject _jellyPrefab;
         [SerializeField] private GameObject _pickupSlotPrefab;
 
-        [Header("Block Spawning Pool")]
-        [SerializeField] private string[] _colorIds = new string[] { "blue", "red", "yellow", "green", "purple" };
+        [Header("Fallback Color Pool (used when no LevelData is loaded)")]
+        [SerializeField] private string[] _fallbackColorIds = new string[] { "blue", "red", "yellow", "green", "purple" };
 
+        // ── Runtime state ──────────────────────────────────────────────────────────
+        private string[]    _colorIds;           // active palette for this level
         private JellyBlock[] _slots;
-        private JellyBlock _draggingBlock = null;
-        private int _draggedSlotIndex = -1;
-        private Vector3 _dragOffset;
-        private Vector3 _lastMousePos;
-        private Vector3 _dragVelocity;
+        private int          _activeSlotCount;   // how many slots to show (from LevelData)
 
-        private Sprite _whitePixelSprite;
+        // Pickup division weights (read from LevelData or defaults)
+        private float _wOne   = 5f;
+        private float _wTwo   = 3f;
+        private float _wThree = 0f;
+        private float _wFour  = 0f;
+
+        private JellyBlock _draggingBlock;
+        private int        _draggedSlotIndex = -1;
+        private Vector3    _dragOffset;
+        private Vector3    _lastMousePos;
+
+        // ── Unity lifecycle ───────────────────────────────────────────────────────
 
         private void Awake()
         {
-            // Must be set before any JellyBlocks are spawned in Start()
             JellyBlock.JellyPrefab = _jellyPrefab;
         }
 
         private void Start()
         {
-            _slots = new JellyBlock[_spawnSlots.Length];
-            GenerateWhiteSprite();
+            ApplyLevelSettings();
+            GeneratePickupSlotVisuals();
+            _slots = new JellyBlock[_activeSlotCount];
+            ReplenishAllSlots();
+        }
 
-            // Spawn PickupSlot background visuals under each spawn slot transform
-            if (_pickupSlotPrefab != null)
+        // ── Level data ────────────────────────────────────────────────────────────
+
+        private void ApplyLevelSettings()
+        {
+            LevelData level = LevelManager.IsSingletonAlive ? LevelManager.I.CurrentLevel : null;
+
+            if (level != null)
             {
-                for (int i = 0; i < _spawnSlots.Length; i++)
+                _colorIds       = level.GetColorPool();
+                _activeSlotCount = Mathf.Clamp(level.pickupSlots, 1,
+                    _spawnSlots != null ? _spawnSlots.Length : 1);
+                _wOne   = level.pickupWeightOne;
+                _wTwo   = level.pickupWeightTwo;
+                _wThree = level.pickupWeightThree;
+                _wFour  = level.pickupWeightFour;
+            }
+            else
+            {
+                _colorIds        = _fallbackColorIds;
+                _activeSlotCount = _spawnSlots != null ? _spawnSlots.Length : 1;
+                // keep default weights
+            }
+
+            if (_colorIds == null || _colorIds.Length == 0)
+                _colorIds = _fallbackColorIds;
+        }
+
+        private void GeneratePickupSlotVisuals()
+        {
+            if (_pickupSlotPrefab == null || _spawnSlots == null) return;
+            for (int i = 0; i < _activeSlotCount; i++)
+            {
+                if (_spawnSlots[i] == null) continue;
+                // Don't double-spawn if already present
+                if (_spawnSlots[i].childCount == 0)
                 {
-                    if (_spawnSlots[i] == null) continue;
                     GameObject slotVisual = Instantiate(_pickupSlotPrefab, _spawnSlots[i]);
                     slotVisual.transform.localPosition = new Vector3(0f, 0f, 0.5f);
                     slotVisual.transform.localScale    = new Vector3(1.5f, 1.5f, 1.5f);
                     slotVisual.transform.localRotation = Quaternion.identity;
                 }
             }
-            
-            bool hasBlocks = false;
-            for (int i = 0; i < _slots.Length; i++)
-            {
-                if (_slots[i] != null) hasBlocks = true;
-            }
-            if (!hasBlocks)
-            {
-                ReplenishAllSlots();
-            }
+            // Hide unused slots
+            for (int i = _activeSlotCount; i < _spawnSlots.Length; i++)
+                if (_spawnSlots[i] != null) _spawnSlots[i].gameObject.SetActive(false);
         }
 
-        private void GenerateWhiteSprite()
-        {
-            if (_whitePixelSprite != null) return;
-            Texture2D tex = new Texture2D(1, 1);
-            tex.SetPixel(0, 0, Color.white);
-            tex.Apply();
-            _whitePixelSprite = Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
-        }
+        // ── Input ─────────────────────────────────────────────────────────────────
 
         private void Update()
         {
             if (_grid != null && _grid.IsProcessing) return;
 
             if (Input.GetMouseButtonDown(0))
-            {
                 TryStartDrag();
-            }
             else if (Input.GetMouseButton(0) && _draggingBlock != null)
-            {
                 UpdateDrag();
-            }
             else if (Input.GetMouseButtonUp(0) && _draggingBlock != null)
-            {
                 EndDrag();
-            }
         }
 
         private void TryStartDrag()
@@ -95,20 +118,17 @@ namespace Game.Gameplay
             Vector3 mouseWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             mouseWorld.z = 0f;
 
-            for (int i = 0; i < _spawnSlots.Length; i++)
+            for (int i = 0; i < _activeSlotCount; i++)
             {
-                if (_slots[i] == null) continue;
-
-                float dist = Vector3.Distance(mouseWorld, _spawnSlots[i].position);
-                if (dist < 1.0f) // Drag radius
+                if (_slots[i] == null || _spawnSlots[i] == null) continue;
+                if (Vector3.Distance(mouseWorld, _spawnSlots[i].position) < 1.0f)
                 {
-                    _draggingBlock = _slots[i];
+                    _draggingBlock    = _slots[i];
                     _draggedSlotIndex = i;
-                    _dragOffset = _draggingBlock.transform.position - mouseWorld;
-                    _lastMousePos = mouseWorld;
-                    
+                    _dragOffset       = _draggingBlock.transform.position - mouseWorld;
+                    _lastMousePos     = mouseWorld;
+
                     _draggingBlock.transform.SetParent(null);
-                    
                     _draggingBlock.transform.DOKill();
                     _draggingBlock.transform.DOScale(Vector3.one, 0.08f);
                     break;
@@ -120,12 +140,8 @@ namespace Game.Gameplay
         {
             Vector3 mouseWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             mouseWorld.z = 0f;
-
-            Vector3 delta = mouseWorld - _lastMousePos;
-            _dragVelocity = delta / Time.deltaTime;
             _lastMousePos = mouseWorld;
 
-            // Lift block slightly above finger while dragging
             Vector3 liftedPos = mouseWorld + _dragOffset;
             liftedPos.y += 0.4f;
             _draggingBlock.transform.position = liftedPos;
@@ -136,7 +152,6 @@ namespace Game.Gameplay
             _draggingBlock.ResetRotationAndScale();
             _draggingBlock.transform.DOScale(Vector3.one, 0.05f);
 
-            // Compensate for the 0.4f lift applied during drag
             Vector3 blockPos = _draggingBlock.transform.position;
             blockPos.y -= 0.4f;
             Vector2Int gridCoords = _grid.WorldToGrid(blockPos);
@@ -146,33 +161,31 @@ namespace Game.Gameplay
 
             if (_grid.CanPlaceBlock(gx, gy))
             {
-                JellyBlock placedBlock = _draggingBlock;
-                _slots[_draggedSlotIndex] = null;
-                
-                _grid.DropBlockAsync(placedBlock, gx, gy).Forget();
-                SpawnBlockInSlot(_draggedSlotIndex);
+                JellyBlock placed = _draggingBlock;
+                int slotIdx = _draggedSlotIndex;
+                _slots[slotIdx] = null;
+                _grid.DropBlockAsync(placed, gx, gy).Forget();
+                SpawnBlockInSlot(slotIdx);
             }
             else
             {
-                int slotIndex = _draggedSlotIndex;
+                int slotIdx = _draggedSlotIndex;
                 JellyBlock block = _draggingBlock;
-                
-                block.transform.SetParent(_spawnSlots[slotIndex]);
-                block.transform.DOMove(_spawnSlots[slotIndex].position, 0.25f)
+                block.transform.SetParent(_spawnSlots[slotIdx]);
+                block.transform.DOMove(_spawnSlots[slotIdx].position, 0.25f)
                     .SetEase(Ease.OutBack)
-                    .OnComplete(() =>
-                    {
-                        block.PlayLandingBounce();
-                    });
+                    .OnComplete(() => block.PlayLandingBounce());
             }
 
-            _draggingBlock = null;
+            _draggingBlock    = null;
             _draggedSlotIndex = -1;
         }
 
+        // ── Slot management ───────────────────────────────────────────────────────
+
         private void ReplenishAllSlots()
         {
-            for (int i = 0; i < _slots.Length; i++)
+            for (int i = 0; i < _activeSlotCount; i++)
             {
                 if (_slots[i] != null) Destroy(_slots[i].gameObject);
                 SpawnBlockInSlot(i);
@@ -181,9 +194,8 @@ namespace Game.Gameplay
 
         private void SpawnBlockInSlot(int slotIndex)
         {
-            if (_spawnSlots == null || slotIndex >= _spawnSlots.Length || _spawnSlots[slotIndex] == null) return;
-
-            GenerateWhiteSprite();
+            if (_spawnSlots == null || slotIndex >= _activeSlotCount ||
+                slotIndex >= _spawnSlots.Length || _spawnSlots[slotIndex] == null) return;
 
             GameObject go;
             if (_blockBasePrefab != null)
@@ -194,96 +206,111 @@ namespace Game.Gameplay
             {
                 go = new GameObject("JellyBlock_Dynamic", typeof(JellyBlock));
                 go.transform.SetParent(_spawnSlots[slotIndex]);
-                
                 var vis = new GameObject("Visual");
                 vis.transform.SetParent(go.transform);
                 vis.transform.localPosition = Vector3.zero;
             }
 
-            go.transform.position = _spawnSlots[slotIndex].position;
+            go.transform.position   = _spawnSlots[slotIndex].position;
             go.transform.localScale = Vector3.zero;
             go.transform.DOScale(Vector3.one, 0.25f).SetEase(Ease.OutBack);
 
-            var block = go.GetComponent<JellyBlock>();
-            
-            // Randomize color configurations:
-            // - 1 color: 40%
-            // - 2 colors (split): 40%
-            // - 4 colors (split): 20%
-            string[,] colors = new string[2, 2];
-            float r = Random.value;
-            if (r < 0.4f)
-            {
-                int cIndex = Random.Range(0, _colorIds.Length);
-                string col = _colorIds[cIndex];
-                for (int x = 0; x < 2; x++)
-                    for (int y = 0; y < 2; y++)
-                        colors[x, y] = col;
-            }
-            else if (r < 0.8f)
-            {
-                int c1 = Random.Range(0, _colorIds.Length);
-                int c2 = Random.Range(0, _colorIds.Length);
-                while (c2 == c1) c2 = Random.Range(0, _colorIds.Length);
-                
-                string col1 = _colorIds[c1];
-                string col2 = _colorIds[c2];
-                
-                if (Random.value < 0.5f)
-                {
-                    // Vertical split (left = col1, right = col2)
-                    colors[0, 0] = col1;
-                    colors[0, 1] = col1;
-                    colors[1, 0] = col2;
-                    colors[1, 1] = col2;
-                }
-                else
-                {
-                    // Horizontal split (bottom = col1, top = col2)
-                    colors[0, 0] = col1;
-                    colors[1, 0] = col1;
-                    colors[0, 1] = col2;
-                    colors[1, 1] = col2;
-                }
-            }
-            else
-            {
-                List<string> availableColors = new List<string>(_colorIds);
-                // Simple shuffle
-                for (int idx = 0; idx < availableColors.Count; idx++)
-                {
-                    int swapIdx = Random.Range(idx, availableColors.Count);
-                    string tmp = availableColors[idx];
-                    availableColors[idx] = availableColors[swapIdx];
-                    availableColors[swapIdx] = tmp;
-                }
-                colors[0, 0] = availableColors[0];
-                colors[1, 0] = availableColors[1];
-                colors[0, 1] = availableColors[2];
-                colors[1, 1] = availableColors[3];
-            }
-
+            var block  = go.GetComponent<JellyBlock>();
+            var colors = GeneratePickupColors();
             block.Init(colors);
             _slots[slotIndex] = block;
             block.PlayIdleBreathing();
         }
+
+        // ── Color generation ──────────────────────────────────────────────────────
+
+        private string[,] GeneratePickupColors()
+        {
+            float total = _wOne + _wTwo + _wThree + _wFour;
+            if (total <= 0f) total = 1f;
+
+            float r   = Random.value * total;
+            int   parts;
+            r -= _wOne;   if (r <= 0) parts = 1;
+            else { r -= _wTwo;  if (r <= 0) parts = 2;
+            else { r -= _wThree; if (r <= 0) parts = 3;
+            else parts = 4; } }
+
+            return GenerateColors(_colorIds, parts);
+        }
+
+        private static string[,] GenerateColors(string[] palette, int parts)
+        {
+            string[,] c = new string[2, 2];
+            int n = palette.Length;
+
+            switch (parts)
+            {
+                case 1:
+                {
+                    string col = palette[Random.Range(0, n)];
+                    for (int x = 0; x < 2; x++) for (int y = 0; y < 2; y++) c[x, y] = col;
+                    break;
+                }
+                case 2:
+                {
+                    string c1 = palette[Random.Range(0, n)];
+                    string c2 = Distinct(palette, c1);
+                    if (Random.value < 0.5f)
+                    { c[0,0]=c1; c[0,1]=c1; c[1,0]=c2; c[1,1]=c2; }
+                    else
+                    { c[0,0]=c1; c[1,0]=c1; c[0,1]=c2; c[1,1]=c2; }
+                    break;
+                }
+                case 3:
+                {
+                    string c1 = palette[Random.Range(0, n)];
+                    string c2 = Distinct(palette, c1);
+                    string c3 = Distinct(palette, c1);
+                    for (int t = 0; t < 10 && c3 == c2; t++) c3 = Distinct(palette, c1);
+                    switch (Random.Range(0, 4))
+                    {
+                        case 0: c[0,1]=c1; c[1,1]=c1; c[0,0]=c2; c[1,0]=c3; break; // top row
+                        case 1: c[0,0]=c1; c[0,1]=c1; c[1,0]=c2; c[1,1]=c3; break; // left col
+                        case 2: c[1,0]=c1; c[1,1]=c1; c[0,0]=c2; c[0,1]=c3; break; // right col
+                        default:c[0,0]=c1; c[1,0]=c1; c[0,1]=c2; c[1,1]=c3; break; // bottom row
+                    }
+                    break;
+                }
+                default:
+                {
+                    for (int x = 0; x < 2; x++) for (int y = 0; y < 2; y++) c[x,y] = palette[Random.Range(0, n)];
+                    break;
+                }
+            }
+            return c;
+        }
+
+        private static string Distinct(string[] palette, string exclude)
+        {
+            if (palette.Length == 1) return palette[0];
+            string result = palette[Random.Range(0, palette.Length)];
+            for (int i = 0; i < 20 && result == exclude; i++)
+                result = palette[Random.Range(0, palette.Length)];
+            return result;
+        }
+
+        // ── Public API ────────────────────────────────────────────────────────────
 
         public void ClearSlots()
         {
             if (_slots == null) return;
             for (int i = 0; i < _slots.Length; i++)
             {
-                if (_slots[i] != null)
-                {
-                    Destroy(_slots[i].gameObject);
-                    _slots[i] = null;
-                }
+                if (_slots[i] != null) { Destroy(_slots[i].gameObject); _slots[i] = null; }
             }
         }
 
         public void ResetLauncher()
         {
             ClearSlots();
+            ApplyLevelSettings();
+            _slots = new JellyBlock[_activeSlotCount];
             ReplenishAllSlots();
         }
 
@@ -291,10 +318,7 @@ namespace Game.Gameplay
         {
             if (_slots == null) return 0;
             int count = 0;
-            for (int i = 0; i < _slots.Length; i++)
-            {
-                if (_slots[i] != null) count++;
-            }
+            foreach (var s in _slots) if (s != null) count++;
             return count;
         }
     }

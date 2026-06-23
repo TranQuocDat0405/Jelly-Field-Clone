@@ -32,6 +32,20 @@ namespace Game.Editor
             Debug.Log("Successfully generated all UI Prefabs under " + SAVE_PATH);
         }
 
+        [MenuItem("Game/Generate Win+Lose Popups")]
+        public static void GenerateWinLosePopups()
+        {
+            if (!Directory.Exists(SAVE_PATH))
+                Directory.CreateDirectory(SAVE_PATH);
+
+            GenerateWinPopup();
+            GenerateLosePopup();
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("Generated WinPopup and LosePopup under " + SAVE_PATH);
+        }
+
         private static void ConfigureBaseUIView(BaseUIView view, EUILayer layer, bool unique, bool canDestroy)
         {
             var serialized = new SerializedObject(view);
@@ -326,6 +340,108 @@ namespace Game.Editor
             serialized.ApplyModifiedProperties();
 
             PrefabUtility.SaveAsPrefabAsset(go, SAVE_PATH + "ResultPopup.prefab");
+            Object.DestroyImmediate(go);
+        }
+
+        private static void GenerateWinPopup()
+        {
+            GameObject go = new GameObject("WinPopup", typeof(RectTransform), typeof(Game.UI.WinPopup));
+            var rt = go.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(1080, 1920);
+
+            go.AddComponent<SafeArea>();
+
+            // Semi-transparent overlay
+            GameObject overlay = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            overlay.transform.SetParent(go.transform, false);
+            var overlayRt = overlay.GetComponent<RectTransform>();
+            overlayRt.anchorMin = Vector2.zero; overlayRt.anchorMax = Vector2.one; overlayRt.sizeDelta = Vector2.zero;
+            overlay.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
+
+            // Center panel (green)
+            GameObject panel = new GameObject("Panel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            panel.transform.SetParent(go.transform, false);
+            panel.GetComponent<RectTransform>().sizeDelta = new Vector2(900, 1000);
+            panel.GetComponent<Image>().color = new Color(0.15f, 0.55f, 0.15f, 0.97f);
+
+            // Title
+            var title = CreateText(panel, "TitleText", "Level Complete!", 64);
+            title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 320);
+            title.color = new Color(1f, 0.95f, 0.3f);
+
+            // Next Level button
+            var nextBtn = CreateButton(panel, "NextLevelButton", "NEXT LEVEL");
+            nextBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -100);
+            nextBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(560, 120);
+            nextBtn.GetComponent<Image>().color = new Color(0.2f, 0.75f, 0.2f);
+
+            // Home button
+            var homeBtn = CreateButton(panel, "HomeButton", "HOME");
+            homeBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -260);
+            homeBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(560, 120);
+            homeBtn.GetComponent<Image>().color = new Color(0.3f, 0.3f, 0.5f);
+
+            var popup = go.GetComponent<Game.UI.WinPopup>();
+            ConfigureBaseUIView(popup, EUILayer.Popup, true, false);
+
+            var serialized = new SerializedObject(popup);
+            serialized.FindProperty("_titleText").objectReferenceValue = title;
+            serialized.FindProperty("_nextLevelButton").objectReferenceValue = nextBtn;
+            serialized.FindProperty("_homeButton").objectReferenceValue = homeBtn;
+            serialized.ApplyModifiedProperties();
+
+            PrefabUtility.SaveAsPrefabAsset(go, SAVE_PATH + "WinPopup.prefab");
+            Object.DestroyImmediate(go);
+        }
+
+        private static void GenerateLosePopup()
+        {
+            GameObject go = new GameObject("LosePopup", typeof(RectTransform), typeof(Game.UI.LosePopup));
+            var rt = go.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(1080, 1920);
+
+            go.AddComponent<SafeArea>();
+
+            // Semi-transparent overlay
+            GameObject overlay = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            overlay.transform.SetParent(go.transform, false);
+            var overlayRt = overlay.GetComponent<RectTransform>();
+            overlayRt.anchorMin = Vector2.zero; overlayRt.anchorMax = Vector2.one; overlayRt.sizeDelta = Vector2.zero;
+            overlay.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
+
+            // Center panel (dark red)
+            GameObject panel = new GameObject("Panel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            panel.transform.SetParent(go.transform, false);
+            panel.GetComponent<RectTransform>().sizeDelta = new Vector2(900, 1000);
+            panel.GetComponent<Image>().color = new Color(0.5f, 0.1f, 0.1f, 0.97f);
+
+            // Title
+            var title = CreateText(panel, "TitleText", "Level Failed", 64);
+            title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 320);
+            title.color = new Color(1f, 0.4f, 0.4f);
+
+            // Retry button
+            var retryBtn = CreateButton(panel, "RetryButton", "RETRY");
+            retryBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -100);
+            retryBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(560, 120);
+            retryBtn.GetComponent<Image>().color = new Color(0.8f, 0.25f, 0.25f);
+
+            // Home button
+            var homeBtn = CreateButton(panel, "HomeButton", "HOME");
+            homeBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -260);
+            homeBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(560, 120);
+            homeBtn.GetComponent<Image>().color = new Color(0.3f, 0.3f, 0.5f);
+
+            var popup = go.GetComponent<Game.UI.LosePopup>();
+            ConfigureBaseUIView(popup, EUILayer.Popup, true, false);
+
+            var serialized = new SerializedObject(popup);
+            serialized.FindProperty("_titleText").objectReferenceValue = title;
+            serialized.FindProperty("_retryButton").objectReferenceValue = retryBtn;
+            serialized.FindProperty("_homeButton").objectReferenceValue = homeBtn;
+            serialized.ApplyModifiedProperties();
+
+            PrefabUtility.SaveAsPrefabAsset(go, SAVE_PATH + "LosePopup.prefab");
             Object.DestroyImmediate(go);
         }
 
