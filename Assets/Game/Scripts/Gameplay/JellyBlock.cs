@@ -299,8 +299,33 @@ namespace Game.Gameplay
                     for (int y = 0; y < 2; y++)
                         cellColors[x, y] = firstColor;
             }
+            else if (remaining.Count == 2)
+            {
+                // Exactly 2 colors: guarantee a perfect 2+2 split.
+                // Flood-fill is NOT used here because it can propagate a freshly-filled
+                // cell in the same pass, turning 2+2 into 3+1.
+                string[] cols = new string[2];
+                int ci = 0;
+                foreach (string c in remaining) cols[ci++] = c;
+                string c0 = cols[0], c1 = cols[1];
+
+                int c0Count = 0;
+                for (int x = 0; x < 2; x++)
+                    for (int y = 0; y < 2; y++)
+                        if (cellColors[x, y] == c0) c0Count++;
+
+                int c0Needed = 2 - c0Count; // nulls to fill with c0; rest get c1
+                for (int x = 0; x < 2; x++)
+                    for (int y = 0; y < 2; y++)
+                        if (cellColors[x, y] == null)
+                        {
+                            if (c0Needed > 0) { cellColors[x, y] = c0; c0Needed--; }
+                            else cellColors[x, y] = c1;
+                        }
+            }
             else
             {
+                // 3+ colors: flood-fill (each null borrows from the nearest non-null neighbor)
                 bool filled = true;
                 while (filled)
                 {
