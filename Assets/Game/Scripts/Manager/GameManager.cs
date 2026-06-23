@@ -76,10 +76,14 @@ namespace Game.Manager
                 }
 
                 case EGameState.FIRST:
-                    // Transition to HOME directly (hook ads/leaderboards here if needed)
-                    await UniTask.Delay(TimeSpan.FromSeconds(0.5f));
+                {
+                    // Transition to HOME after a short delay (hook ads/leaderboards here if needed)
+                    float firstEndTime = Time.realtimeSinceStartup + 0.5f;
+                    while (Time.realtimeSinceStartup < firstEndTime)
+                        await UniTask.Yield();
                     ChangeState(EGameState.HOME);
                     break;
+                }
 
                 case EGameState.HOME:
                 {

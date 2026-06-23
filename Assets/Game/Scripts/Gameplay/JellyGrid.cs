@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using DG.Tweening;
@@ -9,9 +8,9 @@ namespace Game.Gameplay
     public class JellyGrid : MonoBehaviour
     {
         [Header("Grid Size")]
-        public int width = 4;
-        public int height = 4;
-        public float slotStep = 1.05f;
+        public int width = 5;
+        public int height = 6;
+        public float slotStep = 1.0f;
 
         [Header("Scene References")]
         [SerializeField] private Transform _blocksParent;
@@ -22,18 +21,16 @@ namespace Game.Gameplay
         private List<GameObject> _slotBackgroundObjects = new List<GameObject>();
         private Sprite _slotBackgroundSprite;
 
-        public System.Action<string, int> OnJelliesCollected; // colorId, count
+        public System.Action<string, int> OnJelliesCollected;
         public System.Action OnMoveCompleted;
 
         private bool _isProcessing = false;
-
         public bool IsProcessing => _isProcessing;
 
         private void Awake()
         {
             _grid = new JellyBlock[width, height];
-            
-            // Adjust grid background visual to match size with a bit of padding
+
             if (_gridBackground != null)
             {
                 _gridBackground.size = new Vector2(width * slotStep + 0.2f, height * slotStep + 0.2f);
@@ -50,16 +47,18 @@ namespace Game.Gameplay
 
         public Vector3 GridToWorld(int gx, int gy)
         {
-            float offset = (width - 1) * slotStep * 0.5f;
-            return transform.position + new Vector3(gx * slotStep - offset, gy * slotStep - offset, 0f);
+            float xOffset = (width - 1) * slotStep * 0.5f;
+            float yOffset = (height - 1) * slotStep * 0.5f;
+            return transform.position + new Vector3(gx * slotStep - xOffset, gy * slotStep - yOffset, 0f);
         }
 
         public Vector2Int WorldToGrid(Vector3 worldPos)
         {
             Vector3 localPos = worldPos - transform.position;
-            float offset = (width - 1) * slotStep * 0.5f;
-            int gx = Mathf.RoundToInt((localPos.x + offset) / slotStep);
-            int gy = Mathf.RoundToInt((localPos.y + offset) / slotStep);
+            float xOffset = (width - 1) * slotStep * 0.5f;
+            float yOffset = (height - 1) * slotStep * 0.5f;
+            int gx = Mathf.RoundToInt((localPos.x + xOffset) / slotStep);
+            int gy = Mathf.RoundToInt((localPos.y + yOffset) / slotStep);
             return new Vector2Int(gx, gy);
         }
 
@@ -85,23 +84,19 @@ namespace Game.Gameplay
             _isProcessing = true;
 
             block.transform.SetParent(_blocksParent != null ? _blocksParent : transform);
-            
-            Vector3 endPos = GridToWorld(gx, gy);
-            
-            // Animate fall/snap
-            block.transform.DOKill();
-            await block.transform.DOMove(endPos, 0.25f).SetEase(Ease.OutQuad).AsyncWaitForCompletion();
 
-            // Set grid occupation
+            Vector3 endPos = GridToWorld(gx, gy);
+
+            block.transform.DOKill();
+            await block.transform.DOMove(endPos, 0.2f).SetEase(Ease.OutQuad).AsyncWaitForCompletion();
+
             _grid[gx, gy] = block;
             _blocksInScene.Add(block);
             block.GridPos = new Vector2Int(gx, gy);
 
-            // Bounce visual
             block.PlayLandingBounce();
-            await UniTask.Delay(150);
+            await UniTask.Delay(120);
 
-            // Process merges and morph cascades recursively
             await ProcessPhysicsCycleAsync();
 
             _isProcessing = false;
@@ -117,8 +112,6 @@ namespace Game.Gameplay
             while (hasChanged && safetyLimit-- > 0)
             {
                 hasChanged = false;
-
-                // 1. Check for same-colored jelly connections and merge/pop them
                 bool merged = await CheckAndMergeJelliesAsync();
                 if (merged) hasChanged = true;
             }
@@ -126,97 +119,68 @@ namespace Game.Gameplay
 
         private async UniTask<bool> CheckAndMergeJelliesAsync()
         {
-            // Map each block to a set of colors to be eliminated from it
             Dictionary<JellyBlock, HashSet<string>> eliminations = new Dictionary<JellyBlock, HashSet<string>>();
 
-            // 1. Scan horizontal boundaries between (gx, gy) and (gx+1, gy)
+            // Horizontal boundaries: right sub-cells of left block touch left sub-cells of right block
             for (int gy = 0; gy < height; gy++)
             {
                 for (int gx = 0; gx < width - 1; gx++)
                 {
-                    JellyBlock leftBlock = _grid[gx, gy];
-                    JellyBlock rightBlock = _grid[gx + 1, gy];
-                    if (leftBlock == null || rightBlock == null) continue;
+                    JellyBlock left = _grid[gx, gy];
+                    JellyBlock right = _grid[gx + 1, gy];
+                    if (left == null || right == null) continue;
 
-                    // TR of left block touches TL of right block
-                    string colorTR = leftBlock.cellColors[1, 1];
-                    string colorTL = rightBlock.cellColors[0, 1];
-                    if (!string.IsNullOrEmpty(colorTR) && colorTR == colorTL)
+                    if (!string.IsNullOrEmpty(left.cellColors[1, 1]) && left.cellColors[1, 1] == right.cellColors[0, 1])
                     {
-                        MarkElimination(leftBlock, colorTR, eliminations);
-                        MarkElimination(rightBlock, colorTL, eliminations);
+                        MarkElimination(left, left.cellColors[1, 1], eliminations);
+                        MarkElimination(right, right.cellColors[0, 1], eliminations);
                     }
-
-                    // BR of left block touches BL of right block
-                    string colorBR = leftBlock.cellColors[1, 0];
-                    string colorBL = rightBlock.cellColors[0, 0];
-                    if (!string.IsNullOrEmpty(colorBR) && colorBR == colorBL)
+                    if (!string.IsNullOrEmpty(left.cellColors[1, 0]) && left.cellColors[1, 0] == right.cellColors[0, 0])
                     {
-                        MarkElimination(leftBlock, colorBR, eliminations);
-                        MarkElimination(rightBlock, colorBL, eliminations);
+                        MarkElimination(left, left.cellColors[1, 0], eliminations);
+                        MarkElimination(right, right.cellColors[0, 0], eliminations);
                     }
                 }
             }
 
-            // 2. Scan vertical boundaries between (gx, gy) and (gx, gy+1)
+            // Vertical boundaries: top sub-cells of bottom block touch bottom sub-cells of top block
             for (int gx = 0; gx < width; gx++)
             {
                 for (int gy = 0; gy < height - 1; gy++)
                 {
-                    JellyBlock bottomBlock = _grid[gx, gy];
-                    JellyBlock topBlock = _grid[gx, gy + 1];
-                    if (bottomBlock == null || topBlock == null) continue;
+                    JellyBlock bottom = _grid[gx, gy];
+                    JellyBlock top = _grid[gx, gy + 1];
+                    if (bottom == null || top == null) continue;
 
-                    // TL of bottom block touches BL of top block
-                    string colorTL = bottomBlock.cellColors[0, 1];
-                    string colorBL = topBlock.cellColors[0, 0];
-                    if (!string.IsNullOrEmpty(colorTL) && colorTL == colorBL)
+                    if (!string.IsNullOrEmpty(bottom.cellColors[0, 1]) && bottom.cellColors[0, 1] == top.cellColors[0, 0])
                     {
-                        MarkElimination(bottomBlock, colorTL, eliminations);
-                        MarkElimination(topBlock, colorBL, eliminations);
+                        MarkElimination(bottom, bottom.cellColors[0, 1], eliminations);
+                        MarkElimination(top, top.cellColors[0, 0], eliminations);
                     }
-
-                    // TR of bottom block touches BR of top block
-                    string colorTR = bottomBlock.cellColors[1, 1];
-                    string colorBR = topBlock.cellColors[1, 0];
-                    if (!string.IsNullOrEmpty(colorTR) && colorTR == colorBR)
+                    if (!string.IsNullOrEmpty(bottom.cellColors[1, 1]) && bottom.cellColors[1, 1] == top.cellColors[1, 0])
                     {
-                        MarkElimination(bottomBlock, colorTR, eliminations);
-                        MarkElimination(topBlock, colorBR, eliminations);
+                        MarkElimination(bottom, bottom.cellColors[1, 1], eliminations);
+                        MarkElimination(top, top.cellColors[1, 0], eliminations);
                     }
                 }
             }
 
             if (eliminations.Count == 0) return false;
 
-            // 3. Apply eliminations and count scores
             foreach (var kvp in eliminations)
             {
                 JellyBlock block = kvp.Key;
-                HashSet<string> colorsToElim = kvp.Value;
-
-                // Count how many cells of these colors are eliminated
-                foreach (string col in colorsToElim)
+                foreach (string col in kvp.Value)
                 {
-                    int matchCount = 0;
+                    int count = 0;
                     for (int x = 0; x < 2; x++)
-                    {
                         for (int y = 0; y < 2; y++)
-                        {
-                            if (block.cellColors[x, y] == col) matchCount++;
-                        }
-                    }
-                    if (matchCount > 0)
-                    {
-                        OnJelliesCollected?.Invoke(col, matchCount);
-                    }
+                            if (block.cellColors[x, y] == col) count++;
+                    if (count > 0) OnJelliesCollected?.Invoke(col, count);
                 }
-
-                // Apply elimination rules inside the block (morphed to single color or empty replaced with adjacent)
-                block.ApplyEliminations(colorsToElim);
+                block.ApplyEliminations(kvp.Value);
             }
 
-            // Play animations for eliminated (completely empty) blocks
             List<JellyBlock> toDestroy = new List<JellyBlock>();
             foreach (var kvp in eliminations)
             {
@@ -228,24 +192,17 @@ namespace Game.Gameplay
                     toDestroy.Add(block);
                 }
             }
-
             foreach (var b in toDestroy)
-            {
-                b.PlayPoof(() => {});
-            }
+                b.PlayPoof(() => { });
 
-            // Wait for morphs and poof animations
-            await UniTask.Delay(350);
+            await UniTask.Delay(300);
             return true;
         }
 
-        private void MarkElimination(JellyBlock block, string color, Dictionary<JellyBlock, HashSet<string>> eliminations)
+        private void MarkElimination(JellyBlock block, string color, Dictionary<JellyBlock, HashSet<string>> elim)
         {
-            if (!eliminations.ContainsKey(block))
-            {
-                eliminations[block] = new HashSet<string>();
-            }
-            eliminations[block].Add(color);
+            if (!elim.ContainsKey(block)) elim[block] = new HashSet<string>();
+            elim[block].Add(color);
         }
 
         private Sprite GenerateGridSlotSprite()
@@ -253,13 +210,10 @@ namespace Game.Gameplay
             int size = 128;
             Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
             Color transparent = new Color(0, 0, 0, 0);
-            
-            // Nice dark background matching the user screenshot
-            Color bgColor = new Color(0.20f, 0.18f, 0.24f, 1f);
-            Color borderColor = new Color(0.32f, 0.29f, 0.38f, 1f);
-            
-            float borderRadius = 20f;
-            float borderWidth = 8f;
+            Color bgColor = new Color(0.15f, 0.13f, 0.20f, 1f);
+            Color borderColor = new Color(0.28f, 0.25f, 0.35f, 1f);
+            float borderRadius = 18f;
+            float borderWidth = 7f;
 
             for (int y = 0; y < size; y++)
             {
@@ -268,58 +222,39 @@ namespace Game.Gameplay
                     float dx = 0;
                     if (x < borderRadius) dx = borderRadius - x;
                     else if (x > size - 1 - borderRadius) dx = x - (size - 1 - borderRadius);
-
                     float dy = 0;
                     if (y < borderRadius) dy = borderRadius - y;
                     else if (y > size - 1 - borderRadius) dy = y - (size - 1 - borderRadius);
 
                     bool isCorner = dx > 0 && dy > 0;
-                    float distToCornerCenter = Mathf.Sqrt(dx * dx + dy * dy);
+                    float dist = Mathf.Sqrt(dx * dx + dy * dy);
 
-                    if (isCorner && distToCornerCenter > borderRadius)
+                    if (isCorner && dist > borderRadius)
                     {
                         tex.SetPixel(x, y, transparent);
                     }
                     else
                     {
-                        bool isBorder = false;
-                        if (isCorner)
-                        {
-                            isBorder = distToCornerCenter >= borderRadius - borderWidth;
-                        }
-                        else
-                        {
-                            isBorder = x < borderWidth || x >= size - borderWidth ||
-                                       y < borderWidth || y >= size - borderWidth;
-                        }
-
-                        if (isBorder)
-                        {
-                            tex.SetPixel(x, y, borderColor);
-                        }
-                        else
-                        {
-                            tex.SetPixel(x, y, bgColor);
-                        }
+                        bool isBorder = isCorner
+                            ? dist >= borderRadius - borderWidth
+                            : x < borderWidth || x >= size - borderWidth || y < borderWidth || y >= size - borderWidth;
+                        tex.SetPixel(x, y, isBorder ? borderColor : bgColor);
                     }
                 }
             }
             tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 64f); // 64 PPU -> size 2.0x2.0
+            // 64 PPU -> sprite is 2.0 world; at scale 0.45 -> 0.9 world visual
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 64f);
         }
 
         private void CreateVisualGridSlots()
         {
             foreach (var go in _slotBackgroundObjects)
-            {
                 if (go != null) Destroy(go);
-            }
             _slotBackgroundObjects.Clear();
 
             if (_slotBackgroundSprite == null)
-            {
                 _slotBackgroundSprite = GenerateGridSlotSprite();
-            }
 
             for (int gx = 0; gx < width; gx++)
             {
@@ -333,7 +268,7 @@ namespace Game.Gameplay
                     SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
                     sr.sprite = _slotBackgroundSprite;
                     sr.sortingOrder = 1;
-                    
+
                     _slotBackgroundObjects.Add(go);
                 }
             }
@@ -341,16 +276,13 @@ namespace Game.Gameplay
 
         public void SpawnInitialJellies()
         {
-            // Clear board on start: starts empty as requested!
             ResetGrid();
         }
 
         public void ResetGrid()
         {
             foreach (var block in _blocksInScene)
-            {
                 if (block != null) Destroy(block.gameObject);
-            }
             _blocksInScene.Clear();
             _grid = new JellyBlock[width, height];
             _isProcessing = false;
@@ -360,18 +292,11 @@ namespace Game.Gameplay
         {
             int count = 0;
             for (int x = 0; x < width; x++)
-            {
                 for (int y = 0; y < height; y++)
-                {
                     if (_grid[x, y] != null) count++;
-                }
-            }
             return count;
         }
 
-        public int GetTotalSlots()
-        {
-            return width * height;
-        }
+        public int GetTotalSlots() => width * height;
     }
 }

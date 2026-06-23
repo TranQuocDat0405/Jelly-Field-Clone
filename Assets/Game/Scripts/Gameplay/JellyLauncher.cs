@@ -87,7 +87,7 @@ namespace Game.Gameplay
                     _draggingBlock.transform.SetParent(null);
                     
                     _draggingBlock.transform.DOKill();
-                    _draggingBlock.transform.DOScale(new Vector3(0.45f * 1.15f, 0.45f * 1.15f, 1f), 0.1f);
+                    _draggingBlock.transform.DOScale(new Vector3(0.45f, 0.45f, 1f), 0.08f);
                     break;
                 }
             }
@@ -102,8 +102,10 @@ namespace Game.Gameplay
             _dragVelocity = delta / Time.deltaTime;
             _lastMousePos = mouseWorld;
 
-            _draggingBlock.transform.position = mouseWorld + _dragOffset;
-            _draggingBlock.ApplyDragStretch(_dragVelocity);
+            // Lift block slightly above finger while dragging
+            Vector3 liftedPos = mouseWorld + _dragOffset;
+            liftedPos.y += 0.4f;
+            _draggingBlock.transform.position = liftedPos;
         }
 
         private void EndDrag()
@@ -111,7 +113,9 @@ namespace Game.Gameplay
             _draggingBlock.ResetRotationAndScale();
             _draggingBlock.transform.DOScale(new Vector3(0.45f, 0.45f, 1f), 0.05f);
 
+            // Compensate for the 0.4f lift applied during drag
             Vector3 blockPos = _draggingBlock.transform.position;
+            blockPos.y -= 0.4f;
             Vector2Int gridCoords = _grid.WorldToGrid(blockPos);
 
             int gx = gridCoords.x;

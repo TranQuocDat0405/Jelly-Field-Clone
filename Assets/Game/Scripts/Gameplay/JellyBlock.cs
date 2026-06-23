@@ -7,55 +7,147 @@ namespace Game.Gameplay
     public class JellyBlock : MonoBehaviour
     {
         [Header("Jelly Properties")]
-        public string[,] cellColors = new string[2, 2]; // [x, y] -> colorId
+        public string[,] cellColors = new string[2, 2];
 
         [Header("Visual References")]
         [SerializeField] private Transform _visualParent;
 
         private Vector2Int _gridPos;
         private SpriteRenderer[,] _renderers = new SpriteRenderer[2, 2];
-        private Sprite _whitePixelSprite;
 
-        public Vector2Int GridPos
-        {
-            get => _gridPos;
-            set => _gridPos = value;
-        }
+        // Shared sprite cache: generated once per color using matcap shading
+        private static Texture2D _matcapTex;
+        private static bool _matcapLoaded;
+        private static readonly Dictionary<string, Sprite> _jellySprites = new Dictionary<string, Sprite>();
+
+        public Vector2Int GridPos { get => _gridPos; set => _gridPos = value; }
 
         private void Awake()
         {
-            GenerateWhiteSprite();
+            EnsureMatCap();
             if (_visualParent == null)
-            {
-                if (transform.childCount > 0)
-                    _visualParent = transform.GetChild(0);
-                else
-                    _visualParent = transform;
-            }
+                _visualParent = transform.childCount > 0 ? transform.GetChild(0) : transform;
         }
 
-        private void GenerateWhiteSprite()
+        // ── Matcap / sprite generation ────────────────────────────────────────────
+
+        private static void EnsureMatCap()
         {
-            if (_whitePixelSprite != null) return;
-            Texture2D tex = new Texture2D(1, 1);
-            tex.SetPixel(0, 0, Color.white);
-            tex.Apply();
-            _whitePixelSprite = Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
+            if (_matcapLoaded) return;
+            _matcapLoaded = true;
+
+            Texture2D loaded = Resources.Load<Texture2D>("JellyMatCap");
+            if (loaded != null)
+            {
+                try
+                {
+                    loaded.GetPixel(0, 0); // throws if not readable
+                    _matcapTex = loaded;
+                    return;
+                }
+                catch { /* fall through to procedural */ }
+            }
+            _matcapTex = BuildProceduralMatCap(128);
         }
+
+        private static Texture2D BuildProceduralMatCap(int size)
+        {
+            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Bilinear;
+
+            // Simulate a soft directional light from upper-left casting a specular highlight
+            Vector3 lightDir = new Vector3(-0.6f, 0.8f, 1.0f).normalized;
+            Vector3 viewDir  = Vector3.forward;
+
+            for (int py = 0; py < size; py++)
+            {
+                for (int px = 0; px < size; px++)
+                {
+                    float u = (px + 0.5f) / size * 2f - 1f;
+                    float v = (py + 0.5f) / size * 2f - 1f;
+                    float lenSq = u * u + v * v;
+
+                    // Fake sphere normal (squished z so corners don't clip too hard)
+                    float z = Mathf.Sqrt(Mathf.Max(0.001f, 1f - lenSq * 0.72f));
+                    Vector3 n = new Vector3(u, v, z).normalized;
+
+                    float diff    = Mathf.Max(0f, Vector3.Dot(n, lightDir));
+                    Vector3 h     = (lightDir + viewDir).normalized;
+                    float spec    = Mathf.Pow(Mathf.Max(0f, Vector3.Dot(n, h)), 24) * 0.95f;
+                    float fresnel = Mathf.Pow(1f - Mathf.Max(0f, n.z), 3) * 0.35f;
+
+                    float bright = Mathf.Clamp01(0.22f + diff * 0.55f + spec - fresnel * 0.4f);
+                    tex.SetPixel(px, py, new Color(bright, bright, bright, 1f));
+                }
+            }
+            tex.Apply();
+            return tex;
+        }
+
+        private static Sprite GetJellySprite(string colorId)
+        {
+            if (_jellySprites.TryGetValue(colorId, out Sprite cached)) return cached;
+
+            EnsureMatCap();
+            Color jelly = GetColorFromId(colorId);
+            int size = 64;
+            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Bilinear;
+
+            for (int py = 0; py < size; py++)
+            {
+                for (int px = 0; px < size; px++)
+                {
+                    float u = (px + 0.5f) / size * 2f - 1f;
+                    float v = (py + 0.5f) / size * 2f - 1f;
+                    float lenSq = u * u + v * v;
+                    float z = Mathf.Sqrt(Mathf.Max(0.001f, 1f - lenSq * 0.72f));
+                    Vector3 n = new Vector3(u, v, z).normalized;
+
+                    float mcU = n.x * 0.5f + 0.5f;
+                    float mcV = n.y * 0.5f + 0.5f;
+                    Color mc = _matcapTex.GetPixelBilinear(mcU, mcV);
+
+                    // Slight specular highlight layered on top
+                    Vector3 h = new Vector3(-0.6f, 0.8f, 1.9f).normalized;
+                    float spec = Mathf.Pow(Mathf.Max(0f, Vector3.Dot(n, h)), 20) * 0.6f;
+
+                    Color final = new Color(
+                        Mathf.Clamp01(mc.r * jelly.r + spec),
+                        Mathf.Clamp01(mc.g * jelly.g + spec),
+                        Mathf.Clamp01(mc.b * jelly.b + spec),
+                        1f
+                    );
+                    tex.SetPixel(px, py, final);
+                }
+            }
+            tex.Apply();
+
+            // 64 PPU -> 1.0 world at scale 1; block parent=0.45 -> cell visual=0.45 world
+            Sprite sprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 64f);
+            _jellySprites[colorId] = sprite;
+            return sprite;
+        }
+
+        // ── Public color lookup ────────────────────────────────────────────────────
 
         public static Color GetColorFromId(string id)
         {
             switch (id)
             {
-                case "blue": return new Color(0.2f, 0.6f, 1f);
-                case "red": return new Color(1f, 0.3f, 0.3f);
-                case "yellow": return new Color(1f, 0.8f, 0.2f);
-                case "green": return new Color(0.3f, 0.8f, 0.3f);
-                case "purple": return new Color(0.7f, 0.3f, 0.9f);
-                case "cyan": return new Color(0.2f, 0.8f, 0.9f);
-                default: return Color.clear;
+                case "blue":   return new Color(0.20f, 0.55f, 1.00f);
+                case "red":    return new Color(1.00f, 0.25f, 0.25f);
+                case "yellow": return new Color(1.00f, 0.80f, 0.10f);
+                case "green":  return new Color(0.20f, 0.82f, 0.30f);
+                case "purple": return new Color(0.70f, 0.25f, 0.95f);
+                case "cyan":   return new Color(0.10f, 0.80f, 0.90f);
+                case "orange": return new Color(1.00f, 0.55f, 0.05f);
+                case "pink":   return new Color(1.00f, 0.40f, 0.70f);
+                default:       return Color.clear;
             }
         }
+
+        // ── Init & visuals ─────────────────────────────────────────────────────────
 
         public void Init(string[,] colors)
         {
@@ -66,26 +158,25 @@ namespace Game.Gameplay
 
         public void RefreshVisuals()
         {
-            GenerateWhiteSprite();
-
             for (int x = 0; x < 2; x++)
             {
                 for (int y = 0; y < 2; y++)
                 {
-                    string colorId = cellColors[x, y];
+                    string colorId  = cellColors[x, y];
                     string childName = $"Cell_{x}_{y}";
                     Transform childTrans = _visualParent.Find(childName);
-                    
+
                     if (childTrans == null)
                     {
                         GameObject childGo = new GameObject(childName);
                         childGo.transform.SetParent(_visualParent);
-                        childGo.transform.localPosition = new Vector3(x == 0 ? -0.5f : 0.5f, y == 0 ? -0.5f : 0.5f, 0f);
-                        childGo.transform.localScale = new Vector3(0.92f, 0.92f, 1f);
+                        // sub-cells at ±0.5 local; block parent scale=0.45 -> centers ±0.225 world
+                        childGo.transform.localPosition = new Vector3(x == 0 ? -0.5f : 0.5f,
+                                                                       y == 0 ? -0.5f : 0.5f, 0f);
+                        childGo.transform.localScale    = Vector3.one;
                         childGo.transform.localRotation = Quaternion.identity;
-                        
+
                         SpriteRenderer sr = childGo.AddComponent<SpriteRenderer>();
-                        sr.sprite = _whitePixelSprite;
                         sr.sortingOrder = 10;
                         _renderers[x, y] = sr;
                         childTrans = childGo.transform;
@@ -103,95 +194,64 @@ namespace Game.Gameplay
                     {
                         childTrans.gameObject.SetActive(true);
                         if (_renderers[x, y] != null)
-                        {
-                            _renderers[x, y].color = GetColorFromId(colorId);
-                        }
+                            _renderers[x, y].sprite = GetJellySprite(colorId);
                     }
                 }
             }
         }
 
+        // ── Elimination / morph ────────────────────────────────────────────────────
+
         public void ApplyEliminations(HashSet<string> colorsToEliminate)
         {
-            // Clear cells that match eliminated colors
             for (int x = 0; x < 2; x++)
-            {
                 for (int y = 0; y < 2; y++)
-                {
                     if (cellColors[x, y] != null && colorsToEliminate.Contains(cellColors[x, y]))
-                    {
                         cellColors[x, y] = null;
-                    }
-                }
-            }
 
-            // Check remaining colors
-            HashSet<string> remainingColors = new HashSet<string>();
-            string firstRemainingColor = null;
+            HashSet<string> remaining = new HashSet<string>();
+            string firstColor = null;
             for (int x = 0; x < 2; x++)
-            {
                 for (int y = 0; y < 2; y++)
-                {
                     if (cellColors[x, y] != null)
                     {
-                        remainingColors.Add(cellColors[x, y]);
-                        if (firstRemainingColor == null)
-                        {
-                            firstRemainingColor = cellColors[x, y];
-                        }
+                        remaining.Add(cellColors[x, y]);
+                        firstColor ??= cellColors[x, y];
                     }
-                }
-            }
 
-            if (remainingColors.Count == 0)
+            if (remaining.Count == 0)
             {
-                // Block is completely empty, it will be destroyed
+                // empty - will be destroyed
             }
-            else if (remainingColors.Count == 1)
+            else if (remaining.Count == 1)
             {
-                // Only 1 color left -> morph block into 1 single solid color occupying all 4 cells!
                 for (int x = 0; x < 2; x++)
-                {
                     for (int y = 0; y < 2; y++)
-                    {
-                        cellColors[x, y] = firstRemainingColor;
-                    }
-                }
+                        cellColors[x, y] = firstColor;
             }
             else
             {
-                // 2 or more colors remaining -> replace empty cells with the color of an adjacent cell in the block
-                bool filledAny = true;
-                while (filledAny)
+                bool filled = true;
+                while (filled)
                 {
-                    filledAny = false;
+                    filled = false;
                     for (int x = 0; x < 2; x++)
-                    {
                         for (int y = 0; y < 2; y++)
-                        {
                             if (cellColors[x, y] == null)
                             {
-                                string adjacentColor = FindAdjacentColorInBlock(x, y);
-                                if (adjacentColor != null)
-                                {
-                                    cellColors[x, y] = adjacentColor;
-                                    filledAny = true;
-                                }
+                                string adj = FindAdjacentColor(x, y);
+                                if (adj != null) { cellColors[x, y] = adj; filled = true; }
                             }
-                        }
-                    }
                 }
             }
 
             RefreshVisuals();
         }
 
-        private string FindAdjacentColorInBlock(int x, int y)
+        private string FindAdjacentColor(int x, int y)
         {
-            // orthogonal neighbors
-            if (cellColors[1 - x, y] != null) return cellColors[1 - x, y];
-            if (cellColors[x, 1 - y] != null) return cellColors[x, 1 - y];
-            // diagonal neighbor
+            if (cellColors[1 - x, y] != null)     return cellColors[1 - x, y];
+            if (cellColors[x, 1 - y] != null)     return cellColors[x, 1 - y];
             if (cellColors[1 - x, 1 - y] != null) return cellColors[1 - x, 1 - y];
             return null;
         }
@@ -199,98 +259,68 @@ namespace Game.Gameplay
         public bool IsEmpty()
         {
             for (int x = 0; x < 2; x++)
-            {
                 for (int y = 0; y < 2; y++)
-                {
                     if (!string.IsNullOrEmpty(cellColors[x, y])) return false;
-                }
-            }
             return true;
         }
+
+        // ── Animations ─────────────────────────────────────────────────────────────
 
         public void PlayIdleBreathing()
         {
             if (_visualParent == null) return;
             _visualParent.DOKill(true);
-            _visualParent.DOScale(new Vector3(1.03f, 0.97f, 1f), 1.5f)
+            _visualParent.localScale = Vector3.one;
+            _visualParent.DOScale(new Vector3(1.04f, 1.04f, 1f), 1.8f)
                 .SetLoops(-1, LoopType.Yoyo)
                 .SetEase(Ease.InOutSine);
         }
 
         public void ApplyDragStretch(Vector3 velocity)
         {
-            if (_visualParent == null) return;
-            
-            float speed = velocity.magnitude;
-            if (speed < 0.05f)
-            {
-                _visualParent.localScale = Vector3.one;
-                return;
-            }
-
-            float stretch = Mathf.Min(speed * 0.02f, 0.25f);
-            float angle = Mathf.Atan2(velocity.y, velocity.x) * Mathf.Rad2Deg;
-            _visualParent.rotation = Quaternion.Euler(0, 0, angle);
-            _visualParent.localScale = new Vector3(1f + stretch, 1f - stretch, 1f);
+            // No drag deformation - block follows finger cleanly
         }
 
         public void ResetRotationAndScale()
         {
             if (_visualParent == null) return;
-            _visualParent.rotation = Quaternion.identity;
+            _visualParent.DOKill(true);
+            _visualParent.rotation   = Quaternion.identity;
             _visualParent.localScale = Vector3.one;
         }
 
         public void PlayLandingBounce()
         {
             if (_visualParent == null) return;
-
             _visualParent.DOKill(true);
             ResetRotationAndScale();
-
-            _visualParent.DOScale(new Vector3(1.25f, 0.75f, 1f), 0.12f)
+            _visualParent.DOScale(new Vector3(1.22f, 0.78f, 1f), 0.10f)
                 .SetEase(Ease.OutQuad)
                 .OnComplete(() =>
-                {
-                    _visualParent.DOScale(new Vector3(0.9f, 1.1f, 1f), 0.08f)
+                    _visualParent.DOScale(new Vector3(0.92f, 1.08f, 1f), 0.07f)
                         .SetEase(Ease.InOutQuad)
                         .OnComplete(() =>
-                        {
-                            _visualParent.DOScale(Vector3.one, 0.06f)
-                                .SetEase(Ease.InQuad);
-                        });
-                });
+                            _visualParent.DOScale(Vector3.one, 0.06f).SetEase(Ease.InQuad)));
         }
 
         public void PlayMergeAndCollect(Vector3 targetPos, System.Action onComplete)
         {
             if (_visualParent == null) return;
-
             _visualParent.DOKill(true);
-            
-            Sequence seq = DOTween.Sequence();
-            seq.Append(_visualParent.DOScale(new Vector3(1.3f, 1.3f, 1f), 0.15f).SetEase(Ease.OutBack));
-            seq.Append(transform.DOMove(targetPos, 0.5f).SetEase(Ease.InBack));
-            seq.Join(transform.DOScale(Vector3.zero, 0.5f).SetEase(Ease.InBack));
-            seq.OnComplete(() =>
-            {
-                onComplete?.Invoke();
-                Destroy(gameObject);
-            });
+            DOTween.Sequence()
+                .Append(_visualParent.DOScale(new Vector3(1.3f, 1.3f, 1f), 0.12f).SetEase(Ease.OutBack))
+                .Append(transform.DOMove(targetPos, 0.45f).SetEase(Ease.InBack))
+                .Join(transform.DOScale(Vector3.zero, 0.45f).SetEase(Ease.InBack))
+                .OnComplete(() => { onComplete?.Invoke(); Destroy(gameObject); });
         }
 
         public void PlayPoof(System.Action onComplete)
         {
             if (_visualParent == null) return;
             _visualParent.DOKill(true);
-
-            _visualParent.DOScale(Vector3.zero, 0.2f)
+            _visualParent.DOScale(Vector3.zero, 0.18f)
                 .SetEase(Ease.InBack)
-                .OnComplete(() =>
-                {
-                    onComplete?.Invoke();
-                    Destroy(gameObject);
-                });
+                .OnComplete(() => { onComplete?.Invoke(); Destroy(gameObject); });
         }
     }
 }

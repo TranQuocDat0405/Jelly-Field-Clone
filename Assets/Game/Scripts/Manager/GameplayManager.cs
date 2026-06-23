@@ -39,11 +39,15 @@ namespace Game.Manager
                     break;
 
                 case EGameplayState.BEGIN:
+                {
                     // Perform start-of-level routines (e.g. countdowns)
                     Debug.Log("[GameplayManager] Level Begin");
-                    await UniTask.Delay(TimeSpan.FromSeconds(1f)); // Wait 1 second (e.g. for "Ready? Go!")
+                    float beginEndTime = Time.realtimeSinceStartup + 1f;
+                    while (Time.realtimeSinceStartup < beginEndTime)
+                        await UniTask.Yield();
                     ChangeState(EGameplayState.PLAYING);
                     break;
+                }
 
                 case EGameplayState.PLAYING:
                     Debug.Log("[GameplayManager] Level Playing");

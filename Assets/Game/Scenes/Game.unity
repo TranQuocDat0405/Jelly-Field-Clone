@@ -357,7 +357,7 @@ Transform:
   m_GameObject: {fileID: 96466897}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -1.5, y: -4.5, z: 0}
+  m_LocalPosition: {x: -1.2, y: -3.8, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -525,6 +525,8 @@ MonoBehaviour:
   blueGoal: 10
   redGoal: 10
   yellowGoal: 10
+  greenGoal: 5
+  purpleGoal: 5
 --- !u!4 &976704316
 Transform:
   m_ObjectHideFlags: 0
@@ -620,14 +622,8 @@ MonoBehaviour:
   _grid: {fileID: 2005704389}
   _blockBasePrefab: {fileID: 0}
   _spawnSlots:
-  - {fileID: 0}
-  - {fileID: 0}
-  _colors:
-  - {r: 0.2, g: 0.6, b: 1, a: 1}
-  - {r: 1, g: 0.3, b: 0.3, a: 1}
-  - {r: 1, g: 0.8, b: 0.2, a: 1}
-  - {r: 0.3, g: 0.8, b: 0.3, a: 1}
-  - {r: 0.7, g: 0.3, b: 0.9, a: 1}
+  - {fileID: 96466898}
+  - {fileID: 1865688192}
   _colorIds:
   - blue
   - red
@@ -707,7 +703,7 @@ Transform:
   m_GameObject: {fileID: 1865688191}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1.5, y: -4.5, z: 0}
+  m_LocalPosition: {x: 1.2, y: -3.8, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -744,7 +740,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   width: 4
   height: 4
-  cellSize: 1
+  slotStep: 1.05
   _blocksParent: {fileID: 1762370086}
   _gridBackground: {fileID: 326160102}
 --- !u!4 &2005704390
@@ -756,7 +752,7 @@ Transform:
   m_GameObject: {fileID: 2005704388}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0.5, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -800,7 +796,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 1
-  m_BackGroundColor: {r: 0.12, g: 0.10, b: 0.08, a: 1}
+  m_BackGroundColor: {r: 0.12, g: 0.1, b: 0.08, a: 1}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
