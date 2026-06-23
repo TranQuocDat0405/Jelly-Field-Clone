@@ -13,7 +13,15 @@ namespace Game.Gameplay
         [SerializeField] private Transform _visualParent;
 
         private Vector2Int _gridPos;
+
+        // Prefab-mode instances (used when JellyPrefab is assigned)
+        private GameObject[,] _jellyInstances = new GameObject[2, 2];
+
+        // Sprite-mode fallback renderers
         private SpriteRenderer[,] _renderers = new SpriteRenderer[2, 2];
+
+        // Set by JellyLauncher.Awake() before any blocks are spawned
+        public static GameObject JellyPrefab;
 
         // Shared sprite cache: generated once per color using matcap shading
         private static Texture2D _matcapTex;
@@ -55,8 +63,7 @@ namespace Game.Gameplay
             Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
             tex.filterMode = FilterMode.Bilinear;
 
-            // Simulate a soft directional light from upper-left casting a specular highlight
-            Vector3 lightDir = new Vector3(-0.6f, 0.8f, 1.0f).normalized;
+            Vector3 lightDir = new Vector3(-0.55f, 0.75f, 1.0f).normalized;
             Vector3 viewDir  = Vector3.forward;
 
             for (int py = 0; py < size; py++)
@@ -67,16 +74,15 @@ namespace Game.Gameplay
                     float v = (py + 0.5f) / size * 2f - 1f;
                     float lenSq = u * u + v * v;
 
-                    // Fake sphere normal (squished z so corners don't clip too hard)
                     float z = Mathf.Sqrt(Mathf.Max(0.001f, 1f - lenSq * 0.72f));
                     Vector3 n = new Vector3(u, v, z).normalized;
 
-                    float diff    = Mathf.Max(0f, Vector3.Dot(n, lightDir));
-                    Vector3 h     = (lightDir + viewDir).normalized;
-                    float spec    = Mathf.Pow(Mathf.Max(0f, Vector3.Dot(n, h)), 24) * 0.95f;
-                    float fresnel = Mathf.Pow(1f - Mathf.Max(0f, n.z), 3) * 0.35f;
+                    float diff = Mathf.Max(0f, Vector3.Dot(n, lightDir));
+                    Vector3 h  = (lightDir + viewDir).normalized;
+                    float spec = Mathf.Pow(Mathf.Max(0f, Vector3.Dot(n, h)), 20) * 0.85f;
 
-                    float bright = Mathf.Clamp01(0.22f + diff * 0.55f + spec - fresnel * 0.4f);
+                    // Keep minimum high (0.6) so jelly color stays vivid in dark areas
+                    float bright = Mathf.Clamp01(0.60f + diff * 0.35f + spec);
                     tex.SetPixel(px, py, new Color(bright, bright, bright, 1f));
                 }
             }
@@ -108,14 +114,17 @@ namespace Game.Gameplay
                     float mcV = n.y * 0.5f + 0.5f;
                     Color mc = _matcapTex.GetPixelBilinear(mcU, mcV);
 
-                    // Slight specular highlight layered on top
-                    Vector3 h = new Vector3(-0.6f, 0.8f, 1.9f).normalized;
-                    float spec = Mathf.Pow(Mathf.Max(0f, Vector3.Dot(n, h)), 20) * 0.6f;
+                    // Map matcap [0..1] → shade factor [0.55..1.0] so dark areas stay vivid
+                    float shade = 0.55f + mc.r * 0.45f;
+
+                    // White specular on top (additive)
+                    Vector3 h = new Vector3(-0.55f, 0.75f, 1.75f).normalized;
+                    float spec = Mathf.Pow(Mathf.Max(0f, Vector3.Dot(n, h)), 18) * 0.55f;
 
                     Color final = new Color(
-                        Mathf.Clamp01(mc.r * jelly.r + spec),
-                        Mathf.Clamp01(mc.g * jelly.g + spec),
-                        Mathf.Clamp01(mc.b * jelly.b + spec),
+                        Mathf.Clamp01(jelly.r * shade + spec),
+                        Mathf.Clamp01(jelly.g * shade + spec),
+                        Mathf.Clamp01(jelly.b * shade + spec),
                         1f
                     );
                     tex.SetPixel(px, py, final);
@@ -158,6 +167,70 @@ namespace Game.Gameplay
 
         public void RefreshVisuals()
         {
+            if (JellyPrefab != null)
+                RefreshWithPrefab();
+            else
+                RefreshWithSprites();
+        }
+
+        // ── Prefab-based visuals ───────────────────────────────────────────────────
+
+        private void RefreshWithPrefab()
+        {
+            for (int x = 0; x < 2; x++)
+            {
+                for (int y = 0; y < 2; y++)
+                {
+                    if (_jellyInstances[x, y] != null)
+                    {
+                        DOTween.Kill(_jellyInstances[x, y].transform);
+                        Destroy(_jellyInstances[x, y]);
+                        _jellyInstances[x, y] = null;
+                    }
+
+                    string colorId = cellColors[x, y];
+                    if (string.IsNullOrEmpty(colorId)) continue;
+
+                    GameObject jellyGo = Instantiate(JellyPrefab, _visualParent);
+                    // Jelly mesh is 1.0 world at scale(1,1,1), centered at pivot.
+                    // Scale to 0.5 so each sub-cell = 0.5×0.5, placed at ±0.25 to tile a 1×1 cell.
+                    float cx = x == 0 ? -0.25f : 0.25f;
+                    float cy = y == 0 ? -0.25f : 0.25f;
+                    jellyGo.transform.localPosition = new Vector3(cx, cy, 0f);
+                    jellyGo.transform.localScale    = new Vector3(0.5f, 0.5f, 0.5f);
+                    jellyGo.transform.localRotation = Quaternion.identity;
+
+                    ColorJellyInstance(jellyGo, GetColorFromId(colorId));
+                    _jellyInstances[x, y] = jellyGo;
+                }
+            }
+        }
+
+        private static Shader _jellyShader;
+
+        private static void ColorJellyInstance(GameObject go, Color color)
+        {
+            var smr = go.GetComponentInChildren<SkinnedMeshRenderer>(true);
+            if (smr == null) return;
+
+            // TCP2 shader from APK is a dummy stub — swap in a real URP/Standard shader
+            if (_jellyShader == null)
+                _jellyShader = Shader.Find("Universal Render Pipeline/Lit")
+                            ?? Shader.Find("Standard");
+
+            Material mat = new Material(_jellyShader);
+            // Both URP Lit (_BaseColor) and Standard (_Color) — set both
+            mat.SetColor("_BaseColor", color);
+            mat.color = color;
+            mat.SetFloat("_Smoothness", 0.70f);
+            mat.SetFloat("_Metallic", 0.0f);
+            smr.material = mat;
+        }
+
+        // ── Sprite-based visuals (fallback) ───────────────────────────────────────
+
+        private void RefreshWithSprites()
+        {
             for (int x = 0; x < 2; x++)
             {
                 for (int y = 0; y < 2; y++)
@@ -170,7 +243,6 @@ namespace Game.Gameplay
                     {
                         GameObject childGo = new GameObject(childName);
                         childGo.transform.SetParent(_visualParent);
-                        // sub-cells at ±0.5 local; block parent scale=0.45 -> centers ±0.225 world
                         childGo.transform.localPosition = new Vector3(x == 0 ? -0.5f : 0.5f,
                                                                        y == 0 ? -0.5f : 0.5f, 0f);
                         childGo.transform.localScale    = Vector3.one;
@@ -187,9 +259,7 @@ namespace Game.Gameplay
                     }
 
                     if (string.IsNullOrEmpty(colorId))
-                    {
                         childTrans.gameObject.SetActive(false);
-                    }
                     else
                     {
                         childTrans.gameObject.SetActive(true);

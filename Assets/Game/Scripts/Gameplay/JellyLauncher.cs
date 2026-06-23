@@ -10,7 +10,11 @@ namespace Game.Gameplay
         [Header("Launcher Settings")]
         [SerializeField] private JellyGrid _grid;
         [SerializeField] private GameObject _blockBasePrefab;
-        [SerializeField] private Transform[] _spawnSlots; // Spawns blocks in these slot transforms
+        [SerializeField] private Transform[] _spawnSlots;
+
+        [Header("Prefabs")]
+        [SerializeField] private GameObject _jellyPrefab;
+        [SerializeField] private GameObject _pickupSlotPrefab;
 
         [Header("Block Spawning Pool")]
         [SerializeField] private string[] _colorIds = new string[] { "blue", "red", "yellow", "green", "purple" };
@@ -24,10 +28,29 @@ namespace Game.Gameplay
 
         private Sprite _whitePixelSprite;
 
+        private void Awake()
+        {
+            // Must be set before any JellyBlocks are spawned in Start()
+            JellyBlock.JellyPrefab = _jellyPrefab;
+        }
+
         private void Start()
         {
             _slots = new JellyBlock[_spawnSlots.Length];
             GenerateWhiteSprite();
+
+            // Spawn PickupSlot background visuals under each spawn slot transform
+            if (_pickupSlotPrefab != null)
+            {
+                for (int i = 0; i < _spawnSlots.Length; i++)
+                {
+                    if (_spawnSlots[i] == null) continue;
+                    GameObject slotVisual = Instantiate(_pickupSlotPrefab, _spawnSlots[i]);
+                    slotVisual.transform.localPosition = new Vector3(0f, 0f, 0.5f);
+                    slotVisual.transform.localScale    = new Vector3(1.5f, 1.5f, 1.5f);
+                    slotVisual.transform.localRotation = Quaternion.identity;
+                }
+            }
             
             bool hasBlocks = false;
             for (int i = 0; i < _slots.Length; i++)
@@ -87,7 +110,7 @@ namespace Game.Gameplay
                     _draggingBlock.transform.SetParent(null);
                     
                     _draggingBlock.transform.DOKill();
-                    _draggingBlock.transform.DOScale(new Vector3(0.45f, 0.45f, 1f), 0.08f);
+                    _draggingBlock.transform.DOScale(Vector3.one, 0.08f);
                     break;
                 }
             }
@@ -111,7 +134,7 @@ namespace Game.Gameplay
         private void EndDrag()
         {
             _draggingBlock.ResetRotationAndScale();
-            _draggingBlock.transform.DOScale(new Vector3(0.45f, 0.45f, 1f), 0.05f);
+            _draggingBlock.transform.DOScale(Vector3.one, 0.05f);
 
             // Compensate for the 0.4f lift applied during drag
             Vector3 blockPos = _draggingBlock.transform.position;
@@ -179,7 +202,7 @@ namespace Game.Gameplay
 
             go.transform.position = _spawnSlots[slotIndex].position;
             go.transform.localScale = Vector3.zero;
-            go.transform.DOScale(new Vector3(0.45f, 0.45f, 1f), 0.25f).SetEase(Ease.OutBack);
+            go.transform.DOScale(Vector3.one, 0.25f).SetEase(Ease.OutBack);
 
             var block = go.GetComponent<JellyBlock>();
             

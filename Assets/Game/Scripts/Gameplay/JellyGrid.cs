@@ -12,6 +12,9 @@ namespace Game.Gameplay
         public int height = 6;
         public float slotStep = 1.0f;
 
+        [Header("Prefabs")]
+        [SerializeField] private GameObject _cellPrefab;
+
         [Header("Scene References")]
         [SerializeField] private Transform _blocksParent;
         [SerializeField] private SpriteRenderer _gridBackground;
@@ -172,11 +175,8 @@ namespace Game.Gameplay
                 JellyBlock block = kvp.Key;
                 foreach (string col in kvp.Value)
                 {
-                    int count = 0;
-                    for (int x = 0; x < 2; x++)
-                        for (int y = 0; y < 2; y++)
-                            if (block.cellColors[x, y] == col) count++;
-                    if (count > 0) OnJelliesCollected?.Invoke(col, count);
+                    // 1 point per block that loses this color, regardless of sub-cell count
+                    OnJelliesCollected?.Invoke(col, 1);
                 }
                 block.ApplyEliminations(kvp.Value);
             }
@@ -253,21 +253,33 @@ namespace Game.Gameplay
                 if (go != null) Destroy(go);
             _slotBackgroundObjects.Clear();
 
-            if (_slotBackgroundSprite == null)
-                _slotBackgroundSprite = GenerateGridSlotSprite();
-
             for (int gx = 0; gx < width; gx++)
             {
                 for (int gy = 0; gy < height; gy++)
                 {
-                    GameObject go = new GameObject($"SlotBg_{gx}_{gy}");
-                    go.transform.SetParent(transform);
-                    go.transform.position = GridToWorld(gx, gy);
-                    go.transform.localScale = new Vector3(0.45f, 0.45f, 1f);
+                    GameObject go;
+                    if (_cellPrefab != null)
+                    {
+                        go = Instantiate(_cellPrefab, transform);
+                        go.name = $"SlotBg_{gx}_{gy}";
+                        go.transform.position = GridToWorld(gx, gy);
+                        // Cell.prefab BoxCollider2D m_Size=(1,1) → exactly 1×1 world at scale 1
+                        go.transform.localScale = Vector3.one;
+                    }
+                    else
+                    {
+                        if (_slotBackgroundSprite == null)
+                            _slotBackgroundSprite = GenerateGridSlotSprite();
 
-                    SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
-                    sr.sprite = _slotBackgroundSprite;
-                    sr.sortingOrder = 1;
+                        go = new GameObject($"SlotBg_{gx}_{gy}");
+                        go.transform.SetParent(transform);
+                        go.transform.position = GridToWorld(gx, gy);
+                        go.transform.localScale = new Vector3(0.45f, 0.45f, 1f);
+
+                        SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
+                        sr.sprite = _slotBackgroundSprite;
+                        sr.sortingOrder = 1;
+                    }
 
                     _slotBackgroundObjects.Add(go);
                 }
