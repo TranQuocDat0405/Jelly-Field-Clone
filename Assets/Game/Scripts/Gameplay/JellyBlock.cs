@@ -26,11 +26,11 @@ namespace Game.Gameplay
         private Vector3 _lastPos;
         private Vector2 _wobble;     // độ "trễ"/nghiêng hiện tại
         private Vector2 _wobbleVel;
-        private const float WOBBLE_STIFF   = 150f;  // độ cứng lò xo
-        private const float WOBBLE_DAMP    = 12f;   // giảm chấn (dao động vài nhịp rồi tắt)
-        private const float WOBBLE_GAIN    = 0.06f; // vận tốc → biên độ wobble
-        private const float WOBBLE_MAX     = 0.5f;  // chặn biên độ
-        private const float WOBBLE_LEAN    = 30f;   // độ nghiêng (deg) / đơn vị wobble
+        private const float WOBBLE_STIFF   = 110f;  // độ cứng lò xo (tần số dao động)
+        private const float WOBBLE_DAMP    = 4.5f;  // giảm chấn THẤP → bật qua lại vài nhịp rồi mới tắt
+        private const float WOBBLE_DRIVE   = 0.9f;  // mức "trễ lại" khi khối di chuyển
+        private const float WOBBLE_MAX     = 0.6f;  // chặn biên độ
+        private const float WOBBLE_LEAN    = 38f;   // độ nghiêng (deg) / đơn vị wobble
 
         // Set by JellyLauncher.Awake() before any blocks are spawned
         public static GameObject JellyPrefab;
@@ -437,14 +437,15 @@ namespace Game.Gameplay
             float dt = Time.deltaTime;
             if (dt <= 0.00001f) return;
 
-            // Vận tốc ngang của khối (theo mặt board x,y)
+            // Mô hình "cục thạch trễ lại": khối di chuyển thì cục thạch bị kéo LỆCH tích lũy (lag),
+            // lò xo (anchor=0) kéo nó về. Khi DỪNG, độ lệch còn quán tính → bật qua lại vài nhịp rồi
+            // mới tắt (boing boing). Damping thấp = dao động lâu hơn.
             Vector3 pos = transform.position;
-            Vector2 vel = new Vector2(pos.x - _lastPos.x, pos.y - _lastPos.y) / dt;
+            Vector2 anchorDelta = new Vector2(pos.x - _lastPos.x, pos.y - _lastPos.y);
             _lastPos = pos;
 
-            // Lò xo giảm chấn: mục tiêu nghiêng ngược hướng chuyển động (quán tính thạch).
-            Vector2 target = -vel * WOBBLE_GAIN;
-            Vector2 accel  = (target - _wobble) * WOBBLE_STIFF - _wobbleVel * WOBBLE_DAMP;
+            _wobble -= anchorDelta * WOBBLE_DRIVE;                 // bị khối kéo lệch (trễ lại)
+            Vector2 accel = -_wobble * WOBBLE_STIFF - _wobbleVel * WOBBLE_DAMP; // lò xo về 0 + giảm chấn
             _wobbleVel += accel * dt;
             _wobble    += _wobbleVel * dt;
             _wobble = Vector2.ClampMagnitude(_wobble, WOBBLE_MAX);
