@@ -159,6 +159,8 @@ namespace Game.Gameplay
         private async UniTask<bool> CheckAndMergeJelliesAsync()
         {
             var eliminations = new Dictionary<JellyBlock, HashSet<string>>();
+            // Điểm merge chung (world) theo (khối, màu) = mép giữa 2 khối khớp → 2 khối gộp về 1 chỗ.
+            var mergePts = new Dictionary<JellyBlock, Dictionary<string, Vector3>>();
 
             // Horizontal: right sub-cells of left block ↔ left sub-cells of right block
             for (int gy = 0; gy < height; gy++)
@@ -167,11 +169,14 @@ namespace Game.Gameplay
                 JellyBlock left  = _grid[gx,     gy];
                 JellyBlock right = _grid[gx + 1, gy];
                 if (left == null || right == null) continue;
+                Vector3 border = (GridToWorld(gx, gy) + GridToWorld(gx + 1, gy)) * 0.5f;
 
                 if (Match(left.cellColors[1, 1], right.cellColors[0, 1]))
-                { Mark(left, left.cellColors[1, 1], eliminations); Mark(right, right.cellColors[0, 1], eliminations); }
+                { Mark(left, left.cellColors[1, 1], eliminations); Mark(right, right.cellColors[0, 1], eliminations);
+                  MarkMerge(left, left.cellColors[1, 1], border, mergePts); MarkMerge(right, right.cellColors[0, 1], border, mergePts); }
                 if (Match(left.cellColors[1, 0], right.cellColors[0, 0]))
-                { Mark(left, left.cellColors[1, 0], eliminations); Mark(right, right.cellColors[0, 0], eliminations); }
+                { Mark(left, left.cellColors[1, 0], eliminations); Mark(right, right.cellColors[0, 0], eliminations);
+                  MarkMerge(left, left.cellColors[1, 0], border, mergePts); MarkMerge(right, right.cellColors[0, 0], border, mergePts); }
             }
 
             // Vertical: top sub-cells of bottom block ↔ bottom sub-cells of top block
@@ -181,11 +186,14 @@ namespace Game.Gameplay
                 JellyBlock bottom = _grid[gx, gy];
                 JellyBlock top    = _grid[gx, gy + 1];
                 if (bottom == null || top == null) continue;
+                Vector3 border = (GridToWorld(gx, gy) + GridToWorld(gx, gy + 1)) * 0.5f;
 
                 if (Match(bottom.cellColors[0, 1], top.cellColors[0, 0]))
-                { Mark(bottom, bottom.cellColors[0, 1], eliminations); Mark(top, top.cellColors[0, 0], eliminations); }
+                { Mark(bottom, bottom.cellColors[0, 1], eliminations); Mark(top, top.cellColors[0, 0], eliminations);
+                  MarkMerge(bottom, bottom.cellColors[0, 1], border, mergePts); MarkMerge(top, top.cellColors[0, 0], border, mergePts); }
                 if (Match(bottom.cellColors[1, 1], top.cellColors[1, 0]))
-                { Mark(bottom, bottom.cellColors[1, 1], eliminations); Mark(top, top.cellColors[1, 0], eliminations); }
+                { Mark(bottom, bottom.cellColors[1, 1], eliminations); Mark(top, top.cellColors[1, 0], eliminations);
+                  MarkMerge(bottom, bottom.cellColors[1, 1], border, mergePts); MarkMerge(top, top.cellColors[1, 0], border, mergePts); }
             }
 
             if (eliminations.Count == 0) return false;
@@ -197,9 +205,13 @@ namespace Game.Gameplay
 
             await UniTask.Delay(80);
 
-            // Step 2: Pop matching sub-cells out (scale to zero)
+            // Step 2: Pop matching sub-cells — gộp về mép chung giữa 2 khối rồi thu nhỏ biến mất
             var popTasks = new List<UniTask>();
-            foreach (var kvp in eliminations) popTasks.Add(kvp.Key.PopSubCellsAsync(kvp.Value));
+            foreach (var kvp in eliminations)
+            {
+                mergePts.TryGetValue(kvp.Key, out var mp);
+                popTasks.Add(kvp.Key.PopSubCellsAsync(kvp.Value, mp));
+            }
             await UniTask.WhenAll(popTasks);
 
             await UniTask.Delay(100);
@@ -287,6 +299,13 @@ namespace Game.Gameplay
         {
             if (!elim.ContainsKey(block)) elim[block] = new HashSet<string>();
             elim[block].Add(color);
+        }
+
+        private static void MarkMerge(JellyBlock block, string color, Vector3 worldPoint,
+                                      Dictionary<JellyBlock, Dictionary<string, Vector3>> mp)
+        {
+            if (!mp.ContainsKey(block)) mp[block] = new Dictionary<string, Vector3>();
+            mp[block][color] = worldPoint; // mép chung giữa 2 khối khớp màu
         }
 
         // ── Board setup ───────────────────────────────────────────────────────────

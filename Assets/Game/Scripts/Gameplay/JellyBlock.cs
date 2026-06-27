@@ -455,8 +455,12 @@ namespace Game.Gameplay
             return tasks.Count > 0 ? UniTask.WhenAll(tasks) : UniTask.CompletedTask;
         }
 
-        public UniTask PopSubCellsAsync(HashSet<string> colorsToEliminate)
+        public UniTask PopSubCellsAsync(HashSet<string> colorsToEliminate,
+                                        Dictionary<string, Vector3> mergeWorld = null)
         {
+            // Dừng breathing để animation thế giới không bị parent scale làm nhiễu.
+            if (_visualParent != null) _visualParent.DOKill();
+
             var tasks = new List<UniTask>();
             for (int x = 0; x < 2; x++)
             for (int y = 0; y < 2; y++)
@@ -467,15 +471,19 @@ namespace Game.Gameplay
                 var tcs = new UniTaskCompletionSource();
                 t.DOKill();
 
-                // Animation triệt tiêu giống bản gốc: NỔI LÊN (về phía camera + lên) và GỘP về tâm khối
-                // (phồng to thành 1 cục), RỒI MỚI thu nhỏ biến mất.
-                Vector3 p0 = t.localPosition;
                 Vector3 s0 = t.localScale;
-                Vector3 gather = new Vector3(p0.x * 0.25f, p0.y * 0.25f, p0.z - 0.55f); // gộp về tâm + nhô ra
+                // Phase 1: NỔI LÊN về phía camera + PHỒNG to thành cục.
+                Vector3 puff = t.position + new Vector3(0f, 0.06f, -0.55f);
+                // Phase 2: MERGE — dồn về mép chung giữa 2 khối khớp màu (nếu có) thành 1 cục.
+                Vector3 mp = default;
+                bool hasMerge = mergeWorld != null && mergeWorld.TryGetValue(cellColors[x, y], out mp);
+                Vector3 mergeTarget = hasMerge ? new Vector3(mp.x, mp.y, t.position.z - 0.55f) : puff;
+
                 var seq = DOTween.Sequence();
-                seq.Append(t.DOLocalMove(gather, 0.16f).SetEase(Ease.OutQuad));
-                seq.Join(t.DOScale(s0 * 1.25f, 0.16f).SetEase(Ease.OutQuad));   // phồng lên thành cục
-                seq.Append(t.DOScale(Vector3.zero, 0.16f).SetEase(Ease.InBack)); // mờ/biến mất
+                seq.Append(t.DOMove(puff, 0.15f).SetEase(Ease.OutQuad));
+                seq.Join(t.DOScale(s0 * 1.28f, 0.15f).SetEase(Ease.OutQuad));        // phồng thành cục
+                seq.Append(t.DOMove(mergeTarget, 0.13f).SetEase(Ease.InOutQuad));    // gộp lại với nhau
+                seq.Append(t.DOScale(Vector3.zero, 0.14f).SetEase(Ease.InBack));     // rồi mới biến mất
                 seq.OnComplete(() => tcs.TrySetResult());
                 tasks.Add(tcs.Task);
             }
