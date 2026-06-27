@@ -194,12 +194,13 @@ namespace Game.Gameplay
                     if (string.IsNullOrEmpty(colorId)) continue;
 
                     GameObject jellyGo = Instantiate(JellyPrefab, _visualParent);
-                    // Jelly mesh is 1.0 world at scale(1,1,1), centered at pivot.
-                    // Scale to 0.5 so each sub-cell = 0.5×0.5, placed at ±0.25 to tile a 1×1 cell.
-                    float cx = x == 0 ? -0.25f : 0.25f;
-                    float cy = y == 0 ? -0.25f : 0.25f;
+                    // Đặt sub-cell gần nhau hơn (±0.21) + phóng to (0.54) để 4 sub-cell CHỒNG MÉP thành
+                    // 1 khối bo góc liền mạch: cùng màu thì nối liền không khe, khác màu chia vùng — giống
+                    // bản gốc. Vẫn nằm gọn trong ô 1×1 (extent ≈ 0.48).
+                    float cx = x == 0 ? -0.21f : 0.21f;
+                    float cy = y == 0 ? -0.21f : 0.21f;
                     jellyGo.transform.localPosition = new Vector3(cx, cy, 0f);
-                    jellyGo.transform.localScale    = new Vector3(0.5f, 0.5f, 0.5f);
+                    jellyGo.transform.localScale    = new Vector3(0.54f, 0.54f, 0.5f);
                     jellyGo.transform.localRotation = Quaternion.identity;
 
                     ColorJellyInstance(jellyGo, GetColorFromId(colorId));
@@ -465,12 +466,20 @@ namespace Game.Gameplay
                 if (t == null) continue;
                 var tcs = new UniTaskCompletionSource();
                 t.DOKill();
-                t.DOScale(Vector3.zero, 0.14f)
-                    .SetEase(Ease.InBack)
-                    .OnComplete(() => tcs.TrySetResult());
+
+                // Animation triệt tiêu giống bản gốc: NỔI LÊN (về phía camera + lên) và GỘP về tâm khối
+                // (phồng to thành 1 cục), RỒI MỚI thu nhỏ biến mất.
+                Vector3 p0 = t.localPosition;
+                Vector3 s0 = t.localScale;
+                Vector3 gather = new Vector3(p0.x * 0.25f, p0.y * 0.25f, p0.z - 0.55f); // gộp về tâm + nhô ra
+                var seq = DOTween.Sequence();
+                seq.Append(t.DOLocalMove(gather, 0.16f).SetEase(Ease.OutQuad));
+                seq.Join(t.DOScale(s0 * 1.25f, 0.16f).SetEase(Ease.OutQuad));   // phồng lên thành cục
+                seq.Append(t.DOScale(Vector3.zero, 0.16f).SetEase(Ease.InBack)); // mờ/biến mất
+                seq.OnComplete(() => tcs.TrySetResult());
                 tasks.Add(tcs.Task);
             }
-            return UniTask.WhenAll(tasks);
+            return tasks.Count > 0 ? UniTask.WhenAll(tasks) : UniTask.CompletedTask;
         }
 
         public void PlayRefillBounce()
