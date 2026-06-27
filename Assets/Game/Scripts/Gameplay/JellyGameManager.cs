@@ -16,6 +16,10 @@ namespace Game.Gameplay
         private readonly Dictionary<string, int> _goals     = new Dictionary<string, int>();
         private readonly Dictionary<string, int> _collected = new Dictionary<string, int>();
 
+        // Chặn thắng/thua kích hoạt nhiều lần trong 1 level (nước thắng dọn nhiều cặp → fire nhiều lần
+        // → CompleteLevel tăng index nhiều lần → NHẢY BẬC level).
+        private bool _resolved;
+
         public static event System.Action OnGoalsUpdated;
 
         // ── Public API for goals ───────────────────────────────────────────────────
@@ -75,6 +79,7 @@ namespace Game.Gameplay
         {
             _goals.Clear();
             _collected.Clear();
+            _resolved = false; // level mới → cho phép thắng/thua kích hoạt lại
 
             // Load targets from current level
             if (LevelManager.IsSingletonAlive && LevelManager.I.CurrentLevel != null)
@@ -126,6 +131,8 @@ namespace Game.Gameplay
 
         private void TriggerWin()
         {
+            if (_resolved) return;   // chỉ thắng 1 lần/level → CompleteLevel chỉ +1
+            _resolved = true;
             Debug.Log("[JellyGameManager] Victory!");
             if (LevelManager.IsSingletonAlive) LevelManager.I.CompleteLevel();
             if (GameplayManager.IsSingletonAlive) GameplayManager.I.EnterResult();
@@ -133,6 +140,8 @@ namespace Game.Gameplay
 
         private void TriggerLose()
         {
+            if (_resolved) return;
+            _resolved = true;
             Debug.Log("[JellyGameManager] Defeat!");
             if (GameplayManager.IsSingletonAlive) GameplayManager.I.EnterLose();
         }
