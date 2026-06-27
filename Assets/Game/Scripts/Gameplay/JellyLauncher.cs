@@ -37,6 +37,52 @@ namespace Game.Gameplay
         private Vector3    _dragOffset;
         private Vector3    _lastMousePos;
 
+        // Khi kéo, nhấc block về phía camera (z âm) + lên trên (y) để nó vẽ rõ TRÊN các block board,
+        // không bị chồng/hòa màu dưới camera nghiêng. Thả ra mới chiếu xuống board (z=0) để đặt.
+        private const float DRAG_LIFT_Z = -1.6f;
+        private const float DRAG_LIFT_Y = 1.2f; // nhấc block cao hơn ngón tay để không bị che
+
+        private Camera _cam;
+        private Camera Cam
+        {
+            get
+            {
+                if (_cam != null) return _cam;
+                // Camera.main có thể trỏ nhầm camera scene khác → ưu tiên camera cùng scene (đang render board)
+                foreach (var c in Camera.allCameras)
+                    if (c.gameObject.scene == gameObject.scene) { _cam = c; break; }
+                if (_cam == null) _cam = Camera.main;
+                return _cam;
+            }
+        }
+
+        // Chiếu con trỏ lên mặt phẳng board (z=0) — đúng cho cả camera nghiêng (ortho/perspective).
+        private bool TryGetBoardPoint(out Vector3 world)
+        {
+            Ray ray = Cam.ScreenPointToRay(Input.mousePosition);
+            Plane board = new Plane(Vector3.forward, Vector3.zero); // z = 0
+            if (board.Raycast(ray, out float enter))
+            {
+                world = ray.GetPoint(enter);
+                world.z = 0f;
+                return true;
+            }
+            world = Vector3.zero;
+            return false;
+        }
+
+        // Chiếu MỘT điểm thế giới (vd tâm block đã nhấc) xuống mặt board z=0 theo hướng nhìn camera.
+        // → ô đích = nơi block ĐANG HIỆN trên màn hình, không phụ thuộc vị trí chuột/độ nhấc.
+        private Vector3 ProjectToBoard(Vector3 worldPoint)
+        {
+            Vector3 fwd = Cam.transform.forward;
+            if (Mathf.Abs(fwd.z) < 1e-4f) { worldPoint.z = 0f; return worldPoint; }
+            float t = -worldPoint.z / fwd.z;
+            Vector3 p = worldPoint + t * fwd;
+            p.z = 0f;
+            return p;
+        }
+
         // ── Unity lifecycle ───────────────────────────────────────────────────────
 
         private void Awake()
@@ -90,7 +136,8 @@ namespace Game.Gameplay
                 {
                     GameObject slotVisual = Instantiate(_pickupSlotPrefab, _spawnSlots[i]);
                     slotVisual.transform.localPosition = new Vector3(0f, 0f, 0.5f);
-                    slotVisual.transform.localScale    = new Vector3(1.5f, 1.5f, 1.5f);
+                    // Đế vừa khít khối (như video), không quá to
+                    slotVisual.transform.localScale    = new Vector3(1.0f, 1.0f, 1.0f);
                     slotVisual.transform.localRotation = Quaternion.identity;
                 }
             }
@@ -115,22 +162,27 @@ namespace Game.Gameplay
 
         private void TryStartDrag()
         {
-            Vector3 mouseWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            mouseWorld.z = 0f;
+            if (!TryGetBoardPoint(out Vector3 mouseWorld)) return;
 
             for (int i = 0; i < _activeSlotCount; i++)
             {
                 if (_slots[i] == null || _spawnSlots[i] == null) continue;
-                if (Vector3.Distance(mouseWorld, _spawnSlots[i].position) < 1.0f)
+                // So khoảng cách trên mặt board (x,y); slot ở z≈0 nên chiếu z=0 là hợp lệ.
+                Vector2 a = new Vector2(mouseWorld.x, mouseWorld.y);
+                Vector2 b = new Vector2(_spawnSlots[i].position.x, _spawnSlots[i].position.y);
+                if (Vector2.Distance(a, b) < 1.2f)
                 {
                     _draggingBlock    = _slots[i];
                     _draggedSlotIndex = i;
-                    _dragOffset       = _draggingBlock.transform.position - mouseWorld;
+                    // Giữ offset chỗ ngón tay nắm vào block (trên mặt board) → đặt theo vị trí block.
+                    Vector3 blockOnBoard = _draggingBlock.transform.position; blockOnBoard.z = 0f;
+                    _dragOffset       = blockOnBoard - mouseWorld;
                     _lastMousePos     = mouseWorld;
 
                     _draggingBlock.transform.SetParent(null);
                     _draggingBlock.transform.DOKill();
-                    _draggingBlock.transform.DOScale(Vector3.one, 0.08f);
+                    // Nhấc lên về phía camera để nổi rõ trên board, kèm phóng nhẹ
+                    _draggingBlock.transform.DOScale(Vector3.one * 1.1f, 0.1f).SetEase(Ease.OutBack);
                     break;
                 }
             }
@@ -138,23 +190,34 @@ namespace Game.Gameplay
 
         private void UpdateDrag()
         {
-            Vector3 mouseWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            mouseWorld.z = 0f;
+            if (!TryGetBoardPoint(out Vector3 mouseWorld)) return;
             _lastMousePos = mouseWorld;
 
-            Vector3 liftedPos = mouseWorld + _dragOffset;
-            liftedPos.y += 0.4f;
+            // Vị trí block trên mặt board = điểm chạm + offset nắm. NHẤC về phía camera (z âm) + lên (y)
+            // → block nổi rõ TRÊN ngón tay và trên các block đã đặt, không bị che/hòa màu.
+            Vector3 boardPos = mouseWorld + _dragOffset; boardPos.z = 0f;
+            Vector3 liftedPos = boardPos;
+            liftedPos.y += DRAG_LIFT_Y;
+            liftedPos.z  = DRAG_LIFT_Z;
             _draggingBlock.transform.position = liftedPos;
+
+            // Ô đích = chiếu TÂM BLOCK (đang nhấc) xuống board theo hướng camera → đúng nơi block hiện trên
+            // màn hình, không theo vị trí chuột.
+            Vector3 proj = ProjectToBoard(liftedPos);
+            Vector2Int gc = _grid.WorldToGrid(proj);
+            _grid.ShowPlacementPreview(gc.x, gc.y);
         }
 
         private void EndDrag()
         {
+            _grid.ClearPlacementPreview();
             _draggingBlock.ResetRotationAndScale();
             _draggingBlock.transform.DOScale(Vector3.one, 0.05f);
 
-            Vector3 blockPos = _draggingBlock.transform.position;
-            blockPos.y -= 0.4f;
-            Vector2Int gridCoords = _grid.WorldToGrid(blockPos);
+            // Ô đặt = chiếu TÂM BLOCK (đang nhấc) xuống board theo hướng camera (giống lúc preview)
+            // → đặt đúng ô mà block đang hiện trên màn hình.
+            Vector3 proj = ProjectToBoard(_draggingBlock.transform.position);
+            Vector2Int gridCoords = _grid.WorldToGrid(proj);
 
             int gx = gridCoords.x;
             int gy = gridCoords.y;

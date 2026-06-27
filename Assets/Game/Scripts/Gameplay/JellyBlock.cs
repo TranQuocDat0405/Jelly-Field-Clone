@@ -143,16 +143,17 @@ namespace Game.Gameplay
 
         public static Color GetColorFromId(string id)
         {
+            // Exact BaseColor values from the original game's TCP2 materials (Color 1-8.mat)
             switch (id)
             {
-                case "blue":   return new Color(0.20f, 0.55f, 1.00f);
-                case "red":    return new Color(1.00f, 0.25f, 0.25f);
-                case "yellow": return new Color(1.00f, 0.80f, 0.10f);
-                case "green":  return new Color(0.20f, 0.82f, 0.30f);
-                case "purple": return new Color(0.70f, 0.25f, 0.95f);
-                case "cyan":   return new Color(0.10f, 0.80f, 0.90f);
-                case "orange": return new Color(1.00f, 0.55f, 0.05f);
-                case "pink":   return new Color(1.00f, 0.40f, 0.70f);
+                case "blue":   return new Color(0.2217f, 0.3393f, 1.0000f); // Color 6
+                case "red":    return new Color(0.9340f, 0.3411f, 0.2159f); // Color 7
+                case "yellow": return new Color(0.8679f, 0.7207f, 0.1515f); // Color 2
+                case "green":  return new Color(0.1473f, 0.7264f, 0.1912f); // Color 5
+                case "purple": return new Color(0.6225f, 0.1651f, 1.0000f); // Color 1
+                case "cyan":   return new Color(0.0188f, 0.7821f, 0.7435f); // Color 3
+                case "orange": return new Color(0.9600f, 0.4900f, 0.1100f); // warm orange
+                case "pink":   return new Color(1.0000f, 0.4198f, 0.8898f); // Color 4
                 default:       return Color.clear;
             }
         }
@@ -208,24 +209,30 @@ namespace Game.Gameplay
         }
 
         private static Shader _jellyShader;
+        private static readonly Dictionary<string, Material> _matByColor = new Dictionary<string, Material>();
 
         private static void ColorJellyInstance(GameObject go, Color color)
         {
             var smr = go.GetComponentInChildren<SkinnedMeshRenderer>(true);
             if (smr == null) return;
 
-            // TCP2 shader from APK is a dummy stub — swap in a real URP/Standard shader
+            // Shader "Jelly/Candy": màu rực + bóng kẹo dẻo (không bị môi trường làm xám). Fallback URP Lit.
             if (_jellyShader == null)
-                _jellyShader = Shader.Find("Universal Render Pipeline/Lit")
+                _jellyShader = Shader.Find("Jelly/Candy")
+                            ?? Shader.Find("Universal Render Pipeline/Lit")
                             ?? Shader.Find("Standard");
 
-            Material mat = new Material(_jellyShader);
-            // Both URP Lit (_BaseColor) and Standard (_Color) — set both
-            mat.SetColor("_BaseColor", color);
-            mat.color = color;
-            mat.SetFloat("_Smoothness", 0.70f);
-            mat.SetFloat("_Metallic", 0.0f);
-            smr.material = mat;
+            string key = color.r + "_" + color.g + "_" + color.b;
+            if (!_matByColor.TryGetValue(key, out Material mat) || mat == null)
+            {
+                mat = new Material(_jellyShader);
+                mat.SetColor("_BaseColor", color);
+                mat.color = color;
+                if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", 0.12f);
+                if (mat.HasProperty("_Metallic"))   mat.SetFloat("_Metallic", 0.0f);
+                _matByColor[key] = mat;
+            }
+            smr.sharedMaterial = mat;
         }
 
         // ── Sprite-based visuals (fallback) ───────────────────────────────────────

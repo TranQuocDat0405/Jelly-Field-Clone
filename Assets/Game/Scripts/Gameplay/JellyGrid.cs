@@ -29,6 +29,10 @@ namespace Game.Gameplay
         private List<GameObject>   _slotBgObjects  = new List<GameObject>();
         private Sprite             _fallbackSprite;
 
+        // Viền trắng preview khi kéo (lấy từ child "Ghost Highlight" của Cell prefab)
+        private readonly Dictionary<Vector2Int, Transform> _cellHighlights = new Dictionary<Vector2Int, Transform>();
+        private Vector2Int _previewCell = new Vector2Int(-1, -1);
+
         public System.Action<string, int> OnJelliesCollected;
         public System.Action              OnMoveCompleted;
 
@@ -83,6 +87,36 @@ namespace Game.Gameplay
             if (!IsInBounds(gx, gy))          return false;
             if (!_activeCells[gx, gy])         return false; // hole
             return _grid[gx, gy] == null;
+        }
+
+        // ── Placement preview (viền trắng khi kéo) ──────────────────────────────────
+
+        public void ShowPlacementPreview(int gx, int gy)
+        {
+            var cell = new Vector2Int(gx, gy);
+            if (cell == _previewCell) return;
+            ClearPlacementPreview();
+            if (!CanPlaceBlock(gx, gy)) return;
+            if (_cellHighlights.TryGetValue(cell, out var hl) && hl != null)
+            {
+                hl.gameObject.SetActive(true);
+                _previewCell = cell;
+            }
+        }
+
+        public void ClearPlacementPreview()
+        {
+            if (_previewCell.x >= 0 &&
+                _cellHighlights.TryGetValue(_previewCell, out var hl) && hl != null)
+                hl.gameObject.SetActive(false);
+            _previewCell = new Vector2Int(-1, -1);
+        }
+
+        private static Transform FindDeep(Transform root, string childName)
+        {
+            foreach (var t in root.GetComponentsInChildren<Transform>(true))
+                if (t.name == childName) return t;
+            return null;
         }
 
         // ── Drop & physics ────────────────────────────────────────────────────────
@@ -308,6 +342,8 @@ namespace Game.Gameplay
         {
             foreach (var go in _slotBgObjects) if (go != null) Destroy(go);
             _slotBgObjects.Clear();
+            _cellHighlights.Clear();
+            _previewCell = new Vector2Int(-1, -1);
 
             for (int gx = 0; gx < width; gx++)
             for (int gy = 0; gy < height; gy++)
@@ -321,6 +357,18 @@ namespace Game.Gameplay
                     go.name = $"SlotBg_{gx}_{gy}";
                     go.transform.position   = GridToWorld(gx, gy);
                     go.transform.localScale = Vector3.one;
+
+                    // Bắt sprite "Ghost Highlight" (viền trắng) để bật khi kéo block tới ô này.
+                    // Đặt lại đúng tâm ô + đồng phẳng mặt ô (z hơi về phía camera) để không lệch dưới
+                    // camera nghiêng.
+                    Transform hl = FindDeep(go.transform, "Ghost Highlight");
+                    if (hl != null)
+                    {
+                        Vector3 cw = GridToWorld(gx, gy);
+                        hl.position = new Vector3(cw.x, cw.y, -0.3f);
+                        hl.gameObject.SetActive(false);
+                        _cellHighlights[new Vector2Int(gx, gy)] = hl;
+                    }
                 }
                 else
                 {
