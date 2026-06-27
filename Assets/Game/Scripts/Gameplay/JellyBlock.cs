@@ -21,6 +21,17 @@ namespace Game.Gameplay
         // Sprite-mode fallback renderers
         private SpriteRenderer[,] _renderers = new SpriteRenderer[2, 2];
 
+        // ── Jelly wobble (cảm giác cục thạch khi kéo) ───────────────────────────────
+        private bool    _wobbling;
+        private Vector3 _lastPos;
+        private Vector2 _wobble;     // độ "trễ"/nghiêng hiện tại
+        private Vector2 _wobbleVel;
+        private const float WOBBLE_STIFF   = 150f;  // độ cứng lò xo
+        private const float WOBBLE_DAMP    = 12f;   // giảm chấn (dao động vài nhịp rồi tắt)
+        private const float WOBBLE_GAIN    = 0.06f; // vận tốc → biên độ wobble
+        private const float WOBBLE_MAX     = 0.5f;  // chặn biên độ
+        private const float WOBBLE_LEAN    = 30f;   // độ nghiêng (deg) / đơn vị wobble
+
         // Set by JellyLauncher.Awake() before any blocks are spawned
         public static GameObject JellyPrefab;
 
@@ -393,7 +404,58 @@ namespace Game.Gameplay
 
         public void ApplyDragStretch(Vector3 velocity)
         {
-            // No drag deformation - block follows finger cleanly
+            // (giữ tương thích) — wobble được xử lý trong LateUpdate khi _wobbling.
+        }
+
+        // ── Jelly wobble (cục thạch) ────────────────────────────────────────────────
+
+        /// <summary>Bật wobble khi bắt đầu kéo: tắt breathing, reset visual.</summary>
+        public void BeginDragWobble()
+        {
+            if (_visualParent == null) return;
+            _visualParent.DOKill();
+            _visualParent.localScale    = Vector3.one;
+            _visualParent.localRotation = Quaternion.identity;
+            _wobble = Vector2.zero;
+            _wobbleVel = Vector2.zero;
+            _lastPos = transform.position;
+            _wobbling = true;
+        }
+
+        /// <summary>Tắt wobble khi thả; trả visual về trạng thái chuẩn (placement/return sẽ tiếp quản).</summary>
+        public void EndDragWobble()
+        {
+            _wobbling = false;
+            if (_visualParent == null) return;
+            _visualParent.localRotation = Quaternion.identity;
+            _visualParent.localScale    = Vector3.one;
+        }
+
+        private void LateUpdate()
+        {
+            if (!_wobbling || _visualParent == null) return;
+            float dt = Time.deltaTime;
+            if (dt <= 0.00001f) return;
+
+            // Vận tốc ngang của khối (theo mặt board x,y)
+            Vector3 pos = transform.position;
+            Vector2 vel = new Vector2(pos.x - _lastPos.x, pos.y - _lastPos.y) / dt;
+            _lastPos = pos;
+
+            // Lò xo giảm chấn: mục tiêu nghiêng ngược hướng chuyển động (quán tính thạch).
+            Vector2 target = -vel * WOBBLE_GAIN;
+            Vector2 accel  = (target - _wobble) * WOBBLE_STIFF - _wobbleVel * WOBBLE_DAMP;
+            _wobbleVel += accel * dt;
+            _wobble    += _wobbleVel * dt;
+            _wobble = Vector2.ClampMagnitude(_wobble, WOBBLE_MAX);
+
+            // Áp dụng: nghiêng (lean) + giãn/ép (squash-stretch) lên visual.
+            _visualParent.localRotation = Quaternion.Euler(_wobble.y * WOBBLE_LEAN,
+                                                           -_wobble.x * WOBBLE_LEAN, 0f);
+            float ax = Mathf.Abs(_wobble.x), ay = Mathf.Abs(_wobble.y);
+            _visualParent.localScale = new Vector3(1f + ax * 0.7f,
+                                                   1f + ay * 0.7f,
+                                                   1f - (ax + ay) * 0.35f);
         }
 
         public void ResetRotationAndScale()

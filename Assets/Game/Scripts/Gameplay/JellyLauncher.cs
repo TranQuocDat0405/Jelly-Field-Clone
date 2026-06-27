@@ -183,6 +183,7 @@ namespace Game.Gameplay
                     _draggingBlock.transform.DOKill();
                     // Nhấc lên về phía camera để nổi rõ trên board, kèm phóng nhẹ
                     _draggingBlock.transform.DOScale(Vector3.one * 1.1f, 0.1f).SetEase(Ease.OutBack);
+                    _draggingBlock.BeginDragWobble(); // bật rung như cục thạch
                     break;
                 }
             }
@@ -211,6 +212,7 @@ namespace Game.Gameplay
         private void EndDrag()
         {
             _grid.ClearPlacementPreview();
+            _draggingBlock.EndDragWobble(); // tắt rung, trả visual về chuẩn
             _draggingBlock.ResetRotationAndScale();
             _draggingBlock.transform.DOScale(Vector3.one, 0.05f);
 
