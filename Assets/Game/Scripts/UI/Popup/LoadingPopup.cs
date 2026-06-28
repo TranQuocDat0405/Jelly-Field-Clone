@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 using UnityEngine.UI;
 using NFramework;
@@ -9,53 +8,47 @@ namespace Game.UI
     public class LoadingPopup : BaseUIView
     {
         [SerializeField] private Image _loadingBarFill;
-        [SerializeField] private Transform _spinner;
-        [SerializeField] private float _spinSpeed = 200f;
+        [SerializeField] private float _fillDuration = 2f;
 
-        private Action _onCompleteCallback;
-
-        private void Update()
-        {
-            if (_spinner != null)
-            {
-                _spinner.Rotate(Vector3.forward, -_spinSpeed * Time.deltaTime);
-            }
-        }
+        private bool _animationDone;
 
         public override void OnOpen()
         {
             base.OnOpen();
+            _animationDone = false;
             SetProgress(0f);
+            AnimateAsync().Forget();
+        }
+
+        private async UniTaskVoid AnimateAsync()
+        {
+            float elapsed = 0f;
+            while (elapsed < _fillDuration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                SetProgress(elapsed / _fillDuration);
+                await UniTask.Yield(PlayerLoopTiming.Update);
+            }
+            SetProgress(1f);
+            _animationDone = true;
+        }
+
+        public async UniTask WaitForAnimationAsync()
+        {
+            while (!_animationDone)
+                await UniTask.Yield(PlayerLoopTiming.Update);
         }
 
         public void SetProgress(float progress)
         {
             if (_loadingBarFill != null)
-            {
                 _loadingBarFill.fillAmount = Mathf.Clamp01(progress);
-            }
-        }
-
-        public async UniTask SimulateLoadingAsync(float duration, Action onComplete = null)
-        {
-            _onCompleteCallback = onComplete;
-            float elapsed = 0f;
-            while (elapsed < duration)
-            {
-                elapsed += Time.deltaTime;
-                SetProgress(elapsed / duration);
-                await UniTask.Yield();
-            }
-            SetProgress(1f);
-            
-            _onCompleteCallback?.Invoke();
-            CloseSelf();
         }
 
         public override void OnClose()
         {
             base.OnClose();
-            _onCompleteCallback = null;
+            _animationDone = false;
         }
     }
 }

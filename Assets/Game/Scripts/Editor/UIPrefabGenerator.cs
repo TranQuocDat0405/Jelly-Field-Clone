@@ -26,6 +26,7 @@ namespace Game.Editor
             GenerateGamePlayMenu();
             GenerateResultPopup();
             GenerateSettingPopup();
+            GenerateConfirmPopup();
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -301,53 +302,71 @@ namespace Game.Editor
         private static void GenerateLoadingPopup()
         {
             GameObject go = new GameObject("LoadingPopup", typeof(RectTransform), typeof(LoadingPopup));
-            var rt = go.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(1080, 1920);
-
-            // Safe Area Component
+            go.GetComponent<RectTransform>().sizeDelta = new Vector2(1080, 1920);
             go.AddComponent<SafeArea>();
 
-            // Background panel
+            // Dark background
             GameObject bg = new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             bg.transform.SetParent(go.transform, false);
-            bg.GetComponent<RectTransform>().sizeDelta = new Vector2(1080, 1920);
-            bg.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.1f, 0.9f);
+            var bgRt = bg.GetComponent<RectTransform>();
+            bgRt.anchorMin = Vector2.zero; bgRt.anchorMax = Vector2.one; bgRt.sizeDelta = Vector2.zero;
+            bg.GetComponent<Image>().color = new Color(0.09f, 0.10f, 0.13f, 1f);
 
-            var txt = CreateText(go, "LoadingText", "LOADING...", 48);
-            txt.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 200);
+            // Purple glow overlay
+            GameObject bgGlow = new GameObject("BackgroundGlow", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            bgGlow.transform.SetParent(go.transform, false);
+            var glowRt = bgGlow.GetComponent<RectTransform>();
+            glowRt.anchorMin = Vector2.zero; glowRt.anchorMax = Vector2.one; glowRt.sizeDelta = Vector2.zero;
+            var glowImg = bgGlow.GetComponent<Image>();
+            glowImg.sprite = LoadSprite("Assets/Sprite/Background Gradient.asset");
+            glowImg.color = new Color(0.35f, 0.15f, 0.70f, 0.25f);
+            glowImg.preserveAspect = false;
 
-            // Spinner
-            GameObject spinner = new GameObject("Spinner", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            spinner.transform.SetParent(go.transform, false);
-            spinner.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 0);
-            spinner.GetComponent<RectTransform>().sizeDelta = new Vector2(120, 120);
-            spinner.GetComponent<Image>().color = Color.white;
+            // App logo
+            GameObject logo = new GameObject("Logo", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            logo.transform.SetParent(go.transform, false);
+            var logoRt = logo.GetComponent<RectTransform>();
+            logoRt.anchoredPosition = new Vector2(0, 300);
+            logoRt.sizeDelta = new Vector2(380, 130);
+            var logoImg = logo.GetComponent<Image>();
+            logoImg.sprite = LoadSprite("Assets/Sprite/IconNameApp.asset");
+            logoImg.preserveAspect = true;
 
-            // Fill Bar Background
-            GameObject fillBg = new GameObject("FillBg", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            fillBg.transform.SetParent(go.transform, false);
-            fillBg.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -200);
-            fillBg.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 40);
-            fillBg.GetComponent<Image>().color = Color.gray;
+            // Loading text (centered, higher up since no spinner)
+            var loadTxt = CreateText(go, "LoadingText", "LOADING", 38);
+            var loadTxtRt = loadTxt.GetComponent<RectTransform>();
+            loadTxtRt.anchoredPosition = new Vector2(0, 40);
+            loadTxtRt.sizeDelta = new Vector2(500, 60);
+            loadTxt.color = new Color(0.7f, 0.7f, 0.9f, 1f);
+            loadTxt.characterSpacing = 8f;
 
-            // Fill Bar Foreground
-            GameObject fillFg = new GameObject("FillFg", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            fillFg.transform.SetParent(fillBg.transform, false);
-            var fillRt = fillFg.GetComponent<RectTransform>();
-            fillRt.anchorMin = Vector2.zero;
-            fillRt.anchorMax = Vector2.one;
-            fillRt.sizeDelta = Vector2.zero;
-            var fillImg = fillFg.GetComponent<Image>();
-            fillImg.color = Color.green;
+            // Progress bar background
+            GameObject barBg = new GameObject("BarBg", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            barBg.transform.SetParent(go.transform, false);
+            var barBgRt = barBg.GetComponent<RectTransform>();
+            barBgRt.anchoredPosition = new Vector2(0, -60);
+            barBgRt.sizeDelta = new Vector2(700, 28);
+            var barBgImg = barBg.GetComponent<Image>();
+            barBgImg.sprite = LoadSprite("Assets/Sprite/ProgressBar_empty.asset");
+            barBgImg.type = Image.Type.Sliced;
+            barBgImg.color = new Color(1f, 1f, 1f, 0.15f);
+
+            // Progress bar fill
+            GameObject barFill = new GameObject("BarFill", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            barFill.transform.SetParent(barBg.transform, false);
+            var barFillRt = barFill.GetComponent<RectTransform>();
+            barFillRt.anchorMin = Vector2.zero; barFillRt.anchorMax = Vector2.one; barFillRt.sizeDelta = Vector2.zero;
+            var fillImg = barFill.GetComponent<Image>();
+            fillImg.sprite = LoadSprite("Assets/Sprite/ProgressBar_winstrick_fill.asset");
             fillImg.type = Image.Type.Filled;
             fillImg.fillMethod = Image.FillMethod.Horizontal;
+            fillImg.color = new Color(0.40f, 0.80f, 1.0f, 1f);
 
             var popup = go.GetComponent<LoadingPopup>();
-            ConfigureBaseUIView(popup, EUILayer.Popup, true, false);
+            ConfigureBaseUIView(popup, EUILayer.AlwaysOnTop, true, false);
 
             var serialized = new SerializedObject(popup);
             serialized.FindProperty("_loadingBarFill").objectReferenceValue = fillImg;
-            serialized.FindProperty("_spinner").objectReferenceValue = spinner.transform;
             serialized.ApplyModifiedProperties();
 
             PrefabUtility.SaveAsPrefabAsset(go, SAVE_PATH + "LoadingPopup.prefab");
@@ -359,18 +378,39 @@ namespace Game.Editor
             GameObject go = new GameObject("GamePlayMenu", typeof(RectTransform), typeof(GamePlayMenu));
             var rt = go.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(1080, 1920);
-
-            // Safe Area Component
             go.AddComponent<SafeArea>();
 
             var menu = go.GetComponent<GamePlayMenu>();
             ConfigureBaseUIView(menu, EUILayer.Menu, true, false);
 
+            // Buttons dùng anchor (0.5,0.5) — tọa độ tính từ tâm canvas (0,0) với canvas 1080x1920
+            // Tâm canvas = (0,0), left=-540, top=960
+            // Muốn buttons cách trái 30px, cách trên 50px → center button đầu tại (-455, 855)
+            Button MakeIconBtn(string name, string spritePath, float cx, float cy)
+            {
+                GameObject btnGo = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+                btnGo.transform.SetParent(go.transform, false);
+                var btnRt = btnGo.GetComponent<RectTransform>();
+                btnRt.anchorMin = new Vector2(0.5f, 0.5f);
+                btnRt.anchorMax = new Vector2(0.5f, 0.5f);
+                btnRt.pivot     = new Vector2(0.5f, 0.5f);
+                btnRt.sizeDelta = new Vector2(110, 110);
+                btnRt.anchoredPosition = new Vector2(cx, cy);
+                var img = btnGo.GetComponent<Image>();
+                img.sprite = LoadSprite(spritePath);
+                img.preserveAspect = true;
+                return btnGo.GetComponent<Button>();
+            }
+
+            // Hàng ngang góc trên trái: y=855 (50px từ trên), x bắt đầu -455, cách 120px
+            var settingsBtn = MakeIconBtn("SettingsButton", "Assets/Sprite/ButtonSettings.asset", -455f, 855f);
+            var homeBtn     = MakeIconBtn("HomeButton",     "Assets/Sprite/ButtonHome.asset",     -335f, 855f);
+            var retryBtn    = MakeIconBtn("RetryButton",    "Assets/Sprite/ButtonReset.asset",    -215f, 855f);
+
             var serialized = new SerializedObject(menu);
-            serialized.FindProperty("_scoreText").objectReferenceValue = null;
-            serialized.FindProperty("_coinText").objectReferenceValue = null;
-            serialized.FindProperty("_pauseButton").objectReferenceValue = null;
-            serialized.FindProperty("_boosterButton").objectReferenceValue = null;
+            serialized.FindProperty("_settingsButton").objectReferenceValue = settingsBtn;
+            serialized.FindProperty("_homeButton").objectReferenceValue = homeBtn;
+            serialized.FindProperty("_retryButton").objectReferenceValue = retryBtn;
             serialized.ApplyModifiedProperties();
 
             PrefabUtility.SaveAsPrefabAsset(go, SAVE_PATH + "GamePlayMenu.prefab");
@@ -528,47 +568,232 @@ namespace Game.Editor
         private static void GenerateSettingPopup()
         {
             GameObject go = new GameObject("SettingPopup", typeof(RectTransform), typeof(SettingPopup));
-            var rt = go.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(1080, 1920);
-
+            go.GetComponent<RectTransform>().sizeDelta = new Vector2(1080, 1920);
             go.AddComponent<SafeArea>();
 
-            // Panel Background
+            // Dark overlay
+            GameObject overlay = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            overlay.transform.SetParent(go.transform, false);
+            var overlayRt = overlay.GetComponent<RectTransform>();
+            overlayRt.anchorMin = Vector2.zero; overlayRt.anchorMax = Vector2.one; overlayRt.sizeDelta = Vector2.zero;
+            overlay.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.65f);
+
+            // Panel (dark rounded card)
             GameObject panel = new GameObject("Panel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             panel.transform.SetParent(go.transform, false);
-            panel.GetComponent<RectTransform>().sizeDelta = new Vector2(950, 800);
-            panel.GetComponent<Image>().color = new Color(0.25f, 0.25f, 0.25f, 0.95f);
+            var panelRt = panel.GetComponent<RectTransform>();
+            panelRt.anchoredPosition = Vector2.zero;
+            panelRt.sizeDelta = new Vector2(860, 640);
+            var panelImg = panel.GetComponent<Image>();
+            panelImg.sprite = LoadSprite("Assets/Sprite/window_back.asset");
+            panelImg.type = Image.Type.Sliced;
+            panelImg.color = new Color(0.12f, 0.13f, 0.18f, 1f);
 
-            var title = CreateText(panel, "SettingsTitle", "SETTINGS", 60);
-            title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 250);
+            // Gear icon
+            GameObject gearGo = new GameObject("GearIcon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            gearGo.transform.SetParent(panel.transform, false);
+            var gearRt = gearGo.GetComponent<RectTransform>();
+            gearRt.anchoredPosition = new Vector2(0, 240);
+            gearRt.sizeDelta = new Vector2(72, 72);
+            gearGo.GetComponent<Image>().sprite = LoadSprite("Assets/Sprite/ButtonSettings.asset");
 
-            // Sounds toggle
-            var soundsLabel = CreateText(panel, "SoundsLabel", "Sounds", 40);
-            soundsLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-180, 100);
-            var soundsToggle = CreateToggle(panel, "SoundsToggle");
-            soundsToggle.GetComponent<RectTransform>().anchoredPosition = new Vector2(200, 100);
+            // Title text
+            var title = CreateText(panel, "SettingsTitle", "SETTINGS", 56);
+            title.fontStyle = FontStyles.Bold;
+            var titleRt = title.GetComponent<RectTransform>();
+            titleRt.anchoredPosition = new Vector2(0, 178);
+            titleRt.sizeDelta = new Vector2(700, 75);
 
-            // Vibration toggle
-            var vLabel = CreateText(panel, "VibrationLabel", "Vibration", 40);
-            vLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-180, -20);
-            var vToggle = CreateToggle(panel, "VibrationToggle");
-            vToggle.GetComponent<RectTransform>().anchoredPosition = new Vector2(200, -20);
+            // Divider
+            GameObject divider = new GameObject("Divider", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            divider.transform.SetParent(panel.transform, false);
+            var divRt = divider.GetComponent<RectTransform>();
+            divRt.anchoredPosition = new Vector2(0, 138);
+            divRt.sizeDelta = new Vector2(740, 2);
+            divider.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.12f);
 
-            // Close button
-            var close = CreateButton(panel, "CloseButton", "CLOSE");
-            close.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -200);
-            close.GetComponent<RectTransform>().sizeDelta = new Vector2(350, 90);
+            // Helper: create a settings row with icon, label and iOS-style toggle
+            Toggle MakeSwitchRow(string rowName, string iconPath, string label, float rowY)
+            {
+                // Icon
+                GameObject iconGo = new GameObject(rowName + "Icon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                iconGo.transform.SetParent(panel.transform, false);
+                var iconRt = iconGo.GetComponent<RectTransform>();
+                iconRt.anchoredPosition = new Vector2(-330, rowY);
+                iconRt.sizeDelta = new Vector2(52, 52);
+                var iconImg = iconGo.GetComponent<Image>();
+                iconImg.sprite = LoadSprite(iconPath);
+                iconImg.preserveAspect = true;
+                iconImg.color = new Color(0.65f, 0.75f, 1f, 1f);
+
+                // Label
+                var labelTmp = CreateText(panel, rowName + "Label", label, 44);
+                labelTmp.color = Color.white;
+                labelTmp.alignment = TextAlignmentOptions.Left;
+                labelTmp.GetComponent<RectTransform>().anchoredPosition = new Vector2(-195, rowY);
+                labelTmp.GetComponent<RectTransform>().sizeDelta = new Vector2(300, 55);
+
+                // iOS-style switch toggle
+                GameObject toggleGo = new GameObject(rowName + "Toggle", typeof(RectTransform), typeof(Toggle));
+                toggleGo.transform.SetParent(panel.transform, false);
+                var tRt = toggleGo.GetComponent<RectTransform>();
+                tRt.anchoredPosition = new Vector2(295, rowY);
+                tRt.sizeDelta = new Vector2(130, 62);
+
+                // Off background
+                GameObject bgGo = new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                bgGo.transform.SetParent(toggleGo.transform, false);
+                var bgRt = bgGo.GetComponent<RectTransform>();
+                bgRt.anchorMin = Vector2.zero; bgRt.anchorMax = Vector2.one; bgRt.sizeDelta = Vector2.zero;
+                var bgImg = bgGo.GetComponent<Image>();
+                bgImg.sprite = LoadSprite("Assets/Sprite/Button_swith_off.asset");
+                bgImg.preserveAspect = false;
+
+                // On checkmark (full size overlay)
+                GameObject checkGo = new GameObject("Checkmark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                checkGo.transform.SetParent(bgGo.transform, false);
+                var checkRt = checkGo.GetComponent<RectTransform>();
+                checkRt.anchorMin = Vector2.zero; checkRt.anchorMax = Vector2.one; checkRt.sizeDelta = Vector2.zero;
+                var checkImg = checkGo.GetComponent<Image>();
+                checkImg.sprite = LoadSprite("Assets/Sprite/Button_swith_on.asset");
+                checkImg.preserveAspect = false;
+
+                var toggle = toggleGo.GetComponent<Toggle>();
+                toggle.targetGraphic = bgImg;
+                toggle.graphic = checkImg;
+                toggle.isOn = true;
+                return toggle;
+            }
+
+            var soundsToggle    = MakeSwitchRow("Sounds",    "Assets/Sprite/Icon_volume.asset",    "Sound",     50f);
+            var vibrationToggle = MakeSwitchRow("Vibration", "Assets/Sprite/Icon_vibration.asset", "Vibration", -80f);
+
+            // Separator above close
+            GameObject divider2 = new GameObject("Divider2", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            divider2.transform.SetParent(panel.transform, false);
+            var div2Rt = divider2.GetComponent<RectTransform>();
+            div2Rt.anchoredPosition = new Vector2(0, -155);
+            div2Rt.sizeDelta = new Vector2(740, 2);
+            divider2.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.12f);
+
+            // Close button (icon button, circular)
+            GameObject closeBtnGo = new GameObject("CloseButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            closeBtnGo.transform.SetParent(panel.transform, false);
+            var closeRt = closeBtnGo.GetComponent<RectTransform>();
+            closeRt.anchoredPosition = new Vector2(0, -240);
+            closeRt.sizeDelta = new Vector2(400, 90);
+            var closeSp = LoadSprite("Assets/Sprite/Button_green_shop.asset");
+            var closeImg = closeBtnGo.GetComponent<Image>();
+            closeImg.sprite = closeSp;
+            closeImg.type = Image.Type.Sliced;
+            closeImg.color = new Color(0.25f, 0.65f, 0.35f, 1f);
+
+            GameObject closeTxtGo = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+            closeTxtGo.transform.SetParent(closeBtnGo.transform, false);
+            var closeTxtRt = closeTxtGo.GetComponent<RectTransform>();
+            closeTxtRt.anchorMin = Vector2.zero; closeTxtRt.anchorMax = Vector2.one; closeTxtRt.sizeDelta = Vector2.zero;
+            var closeTmp = closeTxtGo.GetComponent<TextMeshProUGUI>();
+            closeTmp.text = "CLOSE";
+            closeTmp.alignment = TextAlignmentOptions.Center;
+            closeTmp.fontSize = 44;
+            closeTmp.fontStyle = FontStyles.Bold;
+            closeTmp.color = Color.white;
 
             var popup = go.GetComponent<SettingPopup>();
             ConfigureBaseUIView(popup, EUILayer.Popup, true, false);
 
             var serialized = new SerializedObject(popup);
-            serialized.FindProperty("_soundsToggle").objectReferenceValue     = soundsToggle;
-            serialized.FindProperty("_vibrationToggle").objectReferenceValue  = vToggle;
-            serialized.FindProperty("_closeButton").objectReferenceValue      = close;
+            serialized.FindProperty("_soundsToggle").objectReferenceValue    = soundsToggle;
+            serialized.FindProperty("_vibrationToggle").objectReferenceValue = vibrationToggle;
+            serialized.FindProperty("_closeButton").objectReferenceValue     = closeBtnGo.GetComponent<Button>();
             serialized.ApplyModifiedProperties();
 
             PrefabUtility.SaveAsPrefabAsset(go, SAVE_PATH + "SettingPopup.prefab");
+            Object.DestroyImmediate(go);
+        }
+
+        private static void GenerateConfirmPopup()
+        {
+            GameObject go = new GameObject("ConfirmPopup", typeof(RectTransform), typeof(ConfirmPopup));
+            go.GetComponent<RectTransform>().sizeDelta = new Vector2(1080, 1920);
+            go.AddComponent<SafeArea>();
+
+            // Dim overlay
+            GameObject overlay = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            overlay.transform.SetParent(go.transform, false);
+            var overlayRt = overlay.GetComponent<RectTransform>();
+            overlayRt.anchorMin = Vector2.zero; overlayRt.anchorMax = Vector2.one; overlayRt.sizeDelta = Vector2.zero;
+            overlay.GetComponent<Image>().color = new Color(0, 0, 0, 0.6f);
+
+            // Center panel
+            GameObject panel = new GameObject("Panel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            panel.transform.SetParent(go.transform, false);
+            var panelRt = panel.GetComponent<RectTransform>();
+            panelRt.sizeDelta = new Vector2(700, 400);
+            panelRt.anchoredPosition = Vector2.zero;
+            var panelImg = panel.GetComponent<Image>();
+            panelImg.color = new Color(0.13f, 0.14f, 0.18f, 1f);
+            panelImg.sprite = LoadSprite("Assets/Sprite/Rounded Border Background Insert Popup.asset");
+            panelImg.type = Image.Type.Sliced;
+
+            // Message text
+            GameObject msgGo = new GameObject("MessageText", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+            msgGo.transform.SetParent(panel.transform, false);
+            var msgRt = msgGo.GetComponent<RectTransform>();
+            msgRt.sizeDelta = new Vector2(600, 160);
+            msgRt.anchoredPosition = new Vector2(0, 70);
+            var msgTmp = msgGo.GetComponent<TextMeshProUGUI>();
+            msgTmp.text = "Are you sure?";
+            msgTmp.alignment = TextAlignmentOptions.Center;
+            msgTmp.fontSize = 52;
+            msgTmp.color = Color.white;
+
+            // YES button (green)
+            GameObject yesBtnGo = new GameObject("YesButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            yesBtnGo.transform.SetParent(panel.transform, false);
+            var yesRt = yesBtnGo.GetComponent<RectTransform>();
+            yesRt.sizeDelta = new Vector2(260, 100);
+            yesRt.anchoredPosition = new Vector2(-150, -100);
+            var yesImg = yesBtnGo.GetComponent<Image>();
+            yesImg.sprite = LoadSprite("Assets/Sprite/Button_green_shop.asset");
+            yesImg.type = Image.Type.Sliced;
+
+            GameObject yesTxtGo = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+            yesTxtGo.transform.SetParent(yesBtnGo.transform, false);
+            var yesTxtRt = yesTxtGo.GetComponent<RectTransform>();
+            yesTxtRt.anchorMin = Vector2.zero; yesTxtRt.anchorMax = Vector2.one; yesTxtRt.sizeDelta = Vector2.zero;
+            var yesTmp = yesTxtGo.GetComponent<TextMeshProUGUI>();
+            yesTmp.text = "Yes"; yesTmp.alignment = TextAlignmentOptions.Center;
+            yesTmp.fontSize = 48; yesTmp.color = Color.white; yesTmp.fontStyle = FontStyles.Bold;
+
+            // CANCEL button (red)
+            GameObject cancelBtnGo = new GameObject("CancelButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            cancelBtnGo.transform.SetParent(panel.transform, false);
+            var cancelRt = cancelBtnGo.GetComponent<RectTransform>();
+            cancelRt.sizeDelta = new Vector2(260, 100);
+            cancelRt.anchoredPosition = new Vector2(150, -100);
+            var cancelImg = cancelBtnGo.GetComponent<Image>();
+            cancelImg.sprite = LoadSprite("Assets/Sprite/Button_red.asset");
+            cancelImg.type = Image.Type.Sliced;
+
+            GameObject cancelTxtGo = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+            cancelTxtGo.transform.SetParent(cancelBtnGo.transform, false);
+            var cancelTxtRt = cancelTxtGo.GetComponent<RectTransform>();
+            cancelTxtRt.anchorMin = Vector2.zero; cancelTxtRt.anchorMax = Vector2.one; cancelTxtRt.sizeDelta = Vector2.zero;
+            var cancelTmp = cancelTxtGo.GetComponent<TextMeshProUGUI>();
+            cancelTmp.text = "No"; cancelTmp.alignment = TextAlignmentOptions.Center;
+            cancelTmp.fontSize = 48; cancelTmp.color = Color.white; cancelTmp.fontStyle = FontStyles.Bold;
+
+            var popup = go.GetComponent<ConfirmPopup>();
+            ConfigureBaseUIView(popup, EUILayer.Popup, false, false);
+
+            var serialized = new SerializedObject(popup);
+            serialized.FindProperty("_messageText").objectReferenceValue = msgTmp;
+            serialized.FindProperty("_yesButton").objectReferenceValue   = yesBtnGo.GetComponent<Button>();
+            serialized.FindProperty("_cancelButton").objectReferenceValue = cancelBtnGo.GetComponent<Button>();
+            serialized.ApplyModifiedProperties();
+
+            PrefabUtility.SaveAsPrefabAsset(go, SAVE_PATH + "ConfirmPopup.prefab");
             Object.DestroyImmediate(go);
         }
     }

@@ -111,7 +111,7 @@ namespace Game.Manager
                     {
                         UIManager.I.Open("HomeMenu");
                     }
-                    CloseLoadingPopup();
+                    await CloseLoadingPopupAsync();
 
                     // Play main BGM
                     if (SoundManager.IsSingletonAlive)
@@ -145,7 +145,7 @@ namespace Game.Manager
                     {
                         UIManager.I.Open("GamePlayMenu");
                     }
-                    CloseLoadingPopup();
+                    await CloseLoadingPopupAsync();
 
                     // Play Ingame BGM
                     if (SoundManager.IsSingletonAlive)
@@ -192,22 +192,22 @@ namespace Game.Manager
 
         private void OpenLoadingPopup()
         {
-            if (UIManager.IsSingletonAlive)
-            {
-                BaseUIView dummy;
-                if (!UIManager.I.IsSpecificViewShown("LoadingPopup", out dummy))
-                {
-                    UIManager.I.Open("LoadingPopup");
-                }
-            }
+            if (!UIManager.IsSingletonAlive) return;
+            BaseUIView dummy;
+            if (!UIManager.I.IsSpecificViewShown("LoadingPopup", out dummy))
+                UIManager.I.Open("LoadingPopup");
         }
 
-        private void CloseLoadingPopup()
+        private async UniTask CloseLoadingPopupAsync()
         {
-            if (UIManager.IsSingletonAlive)
+            if (!UIManager.IsSingletonAlive) return;
+            BaseUIView view;
+            if (UIManager.I.IsSpecificViewShown("LoadingPopup", out view))
             {
-                UIManager.I.CloseAll("LoadingPopup");
+                if (view is Game.UI.LoadingPopup lp)
+                    await lp.WaitForAnimationAsync();
             }
+            UIManager.I.CloseAll("LoadingPopup");
         }
 
         public void EnterInGame() => ChangeState(EGameState.INGAME);
