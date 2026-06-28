@@ -5,6 +5,7 @@ using UnityEngine.UI;
 using TMPro;
 using NFramework;
 using Game.UI;
+using Game.Gameplay;
 using System.IO;
 
 namespace Game.Editor
@@ -377,35 +378,65 @@ namespace Game.Editor
         {
             GameObject go = new GameObject("GamePlayMenu", typeof(RectTransform), typeof(GamePlayMenu));
             var rt = go.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(1080, 1920);
+            // Root stretch full + sizeDelta=0 → SafeArea component đặt anchor đúng vùng an toàn (tránh notch).
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.sizeDelta = Vector2.zero;
+            rt.anchoredPosition = Vector2.zero;
             go.AddComponent<SafeArea>();
 
             var menu = go.GetComponent<GamePlayMenu>();
             ConfigureBaseUIView(menu, EUILayer.Menu, true, false);
 
-            // Buttons dùng anchor (0.5,0.5) — tọa độ tính từ tâm canvas (0,0) với canvas 1080x1920
-            // Tâm canvas = (0,0), left=-540, top=960
-            // Muốn buttons cách trái 30px, cách trên 50px → center button đầu tại (-455, 855)
-            Button MakeIconBtn(string name, string spritePath, float cx, float cy)
+            // Nút dùng anchor TOP-LEFT (0,1): x = cách trái, y = -(cách trên) tính TỪ mép safe-area.
+            // → luôn nằm dưới notch và không tràn đỉnh kể cả màn hình rộng hơn 9:16 (iPad).
+            Button MakeIconBtn(string name, string spritePath, float fromLeft, float fromTop)
             {
                 GameObject btnGo = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
                 btnGo.transform.SetParent(go.transform, false);
                 var btnRt = btnGo.GetComponent<RectTransform>();
-                btnRt.anchorMin = new Vector2(0.5f, 0.5f);
-                btnRt.anchorMax = new Vector2(0.5f, 0.5f);
+                btnRt.anchorMin = new Vector2(0f, 1f);
+                btnRt.anchorMax = new Vector2(0f, 1f);
                 btnRt.pivot     = new Vector2(0.5f, 0.5f);
                 btnRt.sizeDelta = new Vector2(110, 110);
-                btnRt.anchoredPosition = new Vector2(cx, cy);
+                btnRt.anchoredPosition = new Vector2(fromLeft, -fromTop);
                 var img = btnGo.GetComponent<Image>();
                 img.sprite = LoadSprite(spritePath);
                 img.preserveAspect = true;
                 return btnGo.GetComponent<Button>();
             }
 
-            // Hàng ngang góc trên trái: y=855 (50px từ trên), x bắt đầu -455, cách 120px
-            var settingsBtn = MakeIconBtn("SettingsButton", "Assets/Sprite/ButtonSettings.asset", -455f, 855f);
-            var homeBtn     = MakeIconBtn("HomeButton",     "Assets/Sprite/ButtonHome.asset",     -335f, 855f);
-            var retryBtn    = MakeIconBtn("RetryButton",    "Assets/Sprite/ButtonReset.asset",    -215f, 855f);
+            var settingsBtn = MakeIconBtn("SettingsButton", "Assets/Sprite/ButtonSettings.asset", 85f,  105f);
+            var homeBtn     = MakeIconBtn("HomeButton",     "Assets/Sprite/ButtonHome.asset",     205f, 105f);
+            var retryBtn    = MakeIconBtn("RetryButton",    "Assets/Sprite/ButtonReset.asset",    325f, 105f);
+
+            // ── HUD Level + đếm màu (Screen-Space, CÙNG canvas với nút) — anchor TOP-CENTER ──
+            // Nút ở trái-trên, HUD ở giữa-trên; với CanvasScaler Match=Width chúng co giãn cùng
+            // nhau → khoảng hở cố định, KHÔNG đè/tràn trên mọi tỉ lệ điện thoại.
+            var levelLabel = CreateText(go, "LevelLabel", "Level 1", 44);
+            levelLabel.fontStyle = FontStyles.Bold;
+            var levelLabelRt = levelLabel.GetComponent<RectTransform>();
+            levelLabelRt.anchorMin = new Vector2(0.5f, 1f);
+            levelLabelRt.anchorMax = new Vector2(0.5f, 1f);
+            levelLabelRt.pivot     = new Vector2(0.5f, 0.5f);
+            levelLabelRt.sizeDelta        = new Vector2(500, 70);
+            levelLabelRt.anchoredPosition = new Vector2(0f, -75f);
+            var levelTextUI = levelLabel.gameObject.AddComponent<LevelTextUI>();
+            var levelSo = new SerializedObject(levelTextUI);
+            levelSo.FindProperty("_label").objectReferenceValue = levelLabel; // _label != null → KHÔNG Bootstrap World-Space
+            levelSo.ApplyModifiedProperties();
+
+            var goalGo = new GameObject("GoalCounterContainer", typeof(RectTransform));
+            goalGo.transform.SetParent(go.transform, false);
+            var goalRt = goalGo.GetComponent<RectTransform>();
+            goalRt.anchorMin = new Vector2(0.5f, 1f);
+            goalRt.anchorMax = new Vector2(0.5f, 1f);
+            goalRt.pivot     = new Vector2(0.5f, 0.5f);
+            goalRt.sizeDelta = new Vector2(900, 100);
+            // -250: nằm HẲN dưới hàng nút (nút bottom ≈ -160; badge cao tối đa ~150) → tách theo
+            // trục Y nên dù level tới 7 màu (Level_20) hàng badge cũng KHÔNG BAO GIỜ đè lên nút.
+            goalRt.anchoredPosition = new Vector2(0f, -250f);
+            goalGo.AddComponent<GoalCounterUI>();
 
             var serialized = new SerializedObject(menu);
             serialized.FindProperty("_settingsButton").objectReferenceValue = settingsBtn;

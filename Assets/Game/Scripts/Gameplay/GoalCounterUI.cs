@@ -16,17 +16,16 @@ namespace Game.Gameplay
         }
 
         private readonly List<BadgeView> _badges = new List<BadgeView>();
-        private JellyGameManager _gm;
-        private static Sprite    _circleSprite;
+        private static Sprite _circleSprite;
 
         private void Start()
         {
-            _gm = JellyGameManager.IsSingletonAlive ? JellyGameManager.I : null;
-            if (_gm == null) return;
-
             JellyGameManager.OnGoalsUpdated += OnGoalsUpdated;
-            BuildBadges();
-            RefreshCounts();
+            if (JellyGameManager.IsSingletonAlive)
+            {
+                BuildBadges();
+                RefreshCounts();
+            }
         }
 
         private void OnDestroy()
@@ -36,9 +35,12 @@ namespace Game.Gameplay
 
         private void OnGoalsUpdated()
         {
+            if (!JellyGameManager.IsSingletonAlive) return;
+            var gm = JellyGameManager.I;
+
             // Rebuild if the goal color set has changed (e.g. new level)
             bool needsRebuild = false;
-            var goalColors = new HashSet<string>(_gm.GetGoalColors());
+            var goalColors = new HashSet<string>(gm.GetGoalColors());
 
             if (goalColors.Count != _badges.Count) { needsRebuild = true; }
             else foreach (var b in _badges) if (!goalColors.Contains(b.colorId)) { needsRebuild = true; break; }
@@ -49,18 +51,25 @@ namespace Game.Gameplay
 
         private void BuildBadges()
         {
+            if (!JellyGameManager.IsSingletonAlive) return;
+            var gm = JellyGameManager.I;
+
             // Destroy old badges
             foreach (var b in _badges) if (b.go != null) Destroy(b.go);
             _badges.Clear();
 
-            List<string> goalColors = new List<string>(_gm.GetGoalColors());
+            List<string> goalColors = new List<string>(gm.GetGoalColors());
             int n = goalColors.Count;
             if (n == 0) return;
 
-            float badgeSize = 80f;
-            float gap       = 18f;
-            float totalW    = n * badgeSize + (n - 1) * gap;
-            float startX    = -totalW / 2f + badgeSize / 2f;
+            // Kích thước thích ứng: to hẳn cho level ít màu (3-4), tự thu lại để KHÔNG tràn khi
+            // level có nhiều màu (Level_20 = 7) — hàng badge luôn vừa trong maxRowWidth.
+            float gap          = 22f;
+            float desiredSize  = 150f;   // cỡ tối đa mong muốn (level ít màu)
+            float maxRowWidth  = 980f;   // bề rộng tối đa của cả hàng (canvas units, chừa lề)
+            float badgeSize    = Mathf.Min(desiredSize, (maxRowWidth - (n - 1) * gap) / n);
+            float totalW       = n * badgeSize + (n - 1) * gap;
+            float startX       = -totalW / 2f + badgeSize / 2f;
 
             for (int i = 0; i < n; i++)
             {
@@ -107,7 +116,7 @@ namespace Game.Gameplay
             textRt.offsetMin = Vector2.zero; textRt.offsetMax = Vector2.zero;
             var tmp = textGo.AddComponent<TextMeshProUGUI>();
             tmp.alignment      = TextAlignmentOptions.Center;
-            tmp.fontSize       = 38;
+            tmp.fontSize       = size * 0.46f;
             tmp.fontStyle      = FontStyles.Bold;
             tmp.color          = Color.white;
             tmp.text           = "?";
@@ -118,10 +127,11 @@ namespace Game.Gameplay
 
         private void RefreshCounts()
         {
-            if (_gm == null) return;
+            if (!JellyGameManager.IsSingletonAlive) return;
+            var gm = JellyGameManager.I;
             foreach (var b in _badges)
             {
-                int rem = _gm.GetRemaining(b.colorId);
+                int rem = gm.GetRemaining(b.colorId);
                 b.countText.text = rem > 0 ? rem.ToString() : "✓"; // ✓
                 float a   = rem > 0 ? 1f : 0.45f;
                 Color col = b.bgImage.color;
