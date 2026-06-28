@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using TMPro;
 using NFramework;
 using Game.Manager;
+using Game;
 
 namespace Game.UI
 {
@@ -70,12 +71,14 @@ namespace Game.UI
 
         private void OnPlayClicked()
         {
+            GameSFX.PlayClick();
             if (GameManager.IsSingletonAlive)
                 GameManager.I.EnterInGame();
         }
 
         private void OnSettingsClicked()
         {
+            GameSFX.PlayClick();
             if (UIManager.IsSingletonAlive)
                 UIManager.I.Open("SettingPopup");
         }

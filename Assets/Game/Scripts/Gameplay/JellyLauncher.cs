@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using Game.Manager;
 using Game.Data;
+using Game;
 
 namespace Game.Gameplay
 {
@@ -181,6 +182,7 @@ namespace Game.Gameplay
 
                     _draggingBlock.transform.SetParent(null);
                     _draggingBlock.transform.DOKill();
+                    GameSFX.PlayPickup();
                     // Nhấc lên về phía camera để nổi rõ trên board, kèm phóng nhẹ
                     _draggingBlock.transform.DOScale(Vector3.one * 1.1f, 0.1f).SetEase(Ease.OutBack);
                     _draggingBlock.BeginDragWobble(); // bật rung như cục thạch
@@ -229,11 +231,13 @@ namespace Game.Gameplay
                 JellyBlock placed = _draggingBlock;
                 int slotIdx = _draggedSlotIndex;
                 _slots[slotIdx] = null;
+                GameSFX.PlayPlace();
                 _grid.DropBlockAsync(placed, gx, gy).Forget();
                 SpawnBlockInSlot(slotIdx);
             }
             else
             {
+                GameSFX.PlayFailedPlace();
                 int slotIdx = _draggedSlotIndex;
                 JellyBlock block = _draggingBlock;
                 block.transform.SetParent(_spawnSlots[slotIdx]);

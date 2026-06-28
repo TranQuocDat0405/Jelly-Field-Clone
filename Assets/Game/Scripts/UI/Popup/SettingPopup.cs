@@ -1,98 +1,62 @@
 using UnityEngine;
 using UnityEngine.UI;
 using NFramework;
+using Game;
 
 namespace Game.UI
 {
     public class SettingPopup : BaseUIView
     {
-        [SerializeField] private Slider _musicVolumeSlider;
-        [SerializeField] private Slider _sfxVolumeSlider;
-        [SerializeField] private Toggle _musicToggle;
-        [SerializeField] private Toggle _sfxToggle;
+        [SerializeField] private Toggle _soundsToggle;
         [SerializeField] private Toggle _vibrationToggle;
         [SerializeField] private Button _closeButton;
 
         private void Start()
         {
             if (_closeButton != null)
-                _closeButton.onClick.AddListener(() => CloseSelf());
-
-            // Listen to value changes
-            if (_musicVolumeSlider != null)
-                _musicVolumeSlider.onValueChanged.AddListener(OnMusicVolumeChanged);
-
-            if (_sfxVolumeSlider != null)
-                _sfxVolumeSlider.onValueChanged.AddListener(OnSfxVolumeChanged);
-
-            if (_musicToggle != null)
-                _musicToggle.onValueChanged.AddListener(OnMusicToggleChanged);
-
-            if (_sfxToggle != null)
-                _sfxToggle.onValueChanged.AddListener(OnSfxToggleChanged);
-
+                _closeButton.onClick.AddListener(OnCloseClicked);
+            if (_soundsToggle != null)
+                _soundsToggle.onValueChanged.AddListener(OnSoundsToggleChanged);
             if (_vibrationToggle != null)
                 _vibrationToggle.onValueChanged.AddListener(OnVibrationToggleChanged);
         }
 
+        // OnEnable chạy synchronous khi SetActive(true) — trước cả Start và OnOpen
+        private void OnEnable() => RefreshUI();
+
         public override void OnOpen()
         {
             base.OnOpen();
-            UpdateUI();
+            RefreshUI();
         }
 
-        private void UpdateUI()
+        private void RefreshUI()
         {
-            if (SoundManager.IsSingletonAlive)
-            {
-                if (_musicVolumeSlider != null)
-                    _musicVolumeSlider.value = SoundManager.I.MusicVolume;
+            // SetIsOnWithoutNotify đảm bảo không trigger callback dù Start chạy trước hay sau
+            if (_soundsToggle != null && SoundManager.IsSingletonAlive)
+                _soundsToggle.SetIsOnWithoutNotify(SoundManager.I.MusicStatus && SoundManager.I.SFXStatus);
 
-                if (_sfxVolumeSlider != null)
-                    _sfxVolumeSlider.value = SoundManager.I.SFXVolume;
-
-                if (_musicToggle != null)
-                    _musicToggle.isOn = SoundManager.I.MusicStatus;
-
-                if (_sfxToggle != null)
-                    _sfxToggle.isOn = SoundManager.I.SFXStatus;
-            }
-
-            if (VibrationManager.IsSingletonAlive)
-            {
-                if (_vibrationToggle != null)
-                    _vibrationToggle.isOn = VibrationManager.I.Status;
-            }
+            if (_vibrationToggle != null && VibrationManager.IsSingletonAlive)
+                _vibrationToggle.SetIsOnWithoutNotify(VibrationManager.I.Status);
         }
 
-        private void OnMusicVolumeChanged(float value)
+        private void OnSoundsToggleChanged(bool value)
         {
-            if (SoundManager.IsSingletonAlive)
-                SoundManager.I.MusicVolume = value;
-        }
-
-        private void OnSfxVolumeChanged(float value)
-        {
-            if (SoundManager.IsSingletonAlive)
-                SoundManager.I.SFXVolume = value;
-        }
-
-        private void OnMusicToggleChanged(bool value)
-        {
-            if (SoundManager.IsSingletonAlive)
-                SoundManager.I.MusicStatus = value;
-        }
-
-        private void OnSfxToggleChanged(bool value)
-        {
-            if (SoundManager.IsSingletonAlive)
-                SoundManager.I.SFXStatus = value;
+            if (!SoundManager.IsSingletonAlive) return;
+            SoundManager.I.MusicStatus = value;
+            SoundManager.I.SFXStatus   = value;
         }
 
         private void OnVibrationToggleChanged(bool value)
         {
             if (VibrationManager.IsSingletonAlive)
                 VibrationManager.I.Status = value;
+        }
+
+        private void OnCloseClicked()
+        {
+            GameSFX.PlayClick();
+            CloseSelf();
         }
     }
 }

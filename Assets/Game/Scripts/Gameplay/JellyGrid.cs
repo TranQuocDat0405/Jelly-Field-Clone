@@ -4,6 +4,7 @@ using DG.Tweening;
 using Cysharp.Threading.Tasks;
 using Game.Manager;
 using Game.Data;
+using Game;
 
 namespace Game.Gameplay
 {
@@ -204,6 +205,7 @@ namespace Game.Gameplay
             await UniTask.WhenAll(flashTasks);
 
             await UniTask.Delay(80);
+            GameSFX.PlayMerge();
 
             // Step 2: Pop matching sub-cells — gộp về mép chung giữa 2 khối rồi thu nhỏ biến mất
             var popTasks = new List<UniTask>();

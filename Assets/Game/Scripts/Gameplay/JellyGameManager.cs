@@ -3,6 +3,7 @@ using UnityEngine;
 using NFramework;
 using Game.Manager;
 using Game.Data;
+using Game;
 
 namespace Game.Gameplay
 {
@@ -116,7 +117,7 @@ namespace Game.Gameplay
             OnGoalsUpdated?.Invoke();
 
             if (SoundManager.IsSingletonAlive)
-                SoundManager.I.PlaySFXResource("Audio/Sfx/SFX_Collect");
+                SoundManager.I.PlaySFXResource("Sfx/SFX_Collect");
 
             if (AllGoalsMet()) TriggerWin();
         }
@@ -134,6 +135,7 @@ namespace Game.Gameplay
             if (_resolved) return;   // chỉ thắng 1 lần/level → CompleteLevel chỉ +1
             _resolved = true;
             Debug.Log("[JellyGameManager] Victory!");
+            GameSFX.PlayWin();
             if (LevelManager.IsSingletonAlive) LevelManager.I.CompleteLevel();
             if (GameplayManager.IsSingletonAlive) GameplayManager.I.EnterResult();
         }
@@ -143,6 +145,7 @@ namespace Game.Gameplay
             if (_resolved) return;
             _resolved = true;
             Debug.Log("[JellyGameManager] Defeat!");
+            GameSFX.PlayLose();
             if (GameplayManager.IsSingletonAlive) GameplayManager.I.EnterLose();
         }
 

@@ -531,58 +531,41 @@ namespace Game.Editor
             var rt = go.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(1080, 1920);
 
-            // Safe Area Component
             go.AddComponent<SafeArea>();
 
             // Panel Background
             GameObject panel = new GameObject("Panel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             panel.transform.SetParent(go.transform, false);
-            panel.GetComponent<RectTransform>().sizeDelta = new Vector2(950, 1300);
+            panel.GetComponent<RectTransform>().sizeDelta = new Vector2(950, 800);
             panel.GetComponent<Image>().color = new Color(0.25f, 0.25f, 0.25f, 0.95f);
 
             var title = CreateText(panel, "SettingsTitle", "SETTINGS", 60);
-            title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 450);
+            title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 250);
 
-            // Sliders & Toggles labels
-            var mVolLabel = CreateText(panel, "MusicLabel", "Music Volume", 32);
-            mVolLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-220, 250);
-            var mSlider = CreateSlider(panel, "MusicVolumeSlider");
-            mSlider.GetComponent<RectTransform>().anchoredPosition = new Vector2(120, 250);
+            // Sounds toggle
+            var soundsLabel = CreateText(panel, "SoundsLabel", "Sounds", 40);
+            soundsLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-180, 100);
+            var soundsToggle = CreateToggle(panel, "SoundsToggle");
+            soundsToggle.GetComponent<RectTransform>().anchoredPosition = new Vector2(200, 100);
 
-            var sVolLabel = CreateText(panel, "SfxLabel", "SFX Volume", 32);
-            sVolLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-220, 150);
-            var sSlider = CreateSlider(panel, "SfxVolumeSlider");
-            sSlider.GetComponent<RectTransform>().anchoredPosition = new Vector2(120, 150);
-
-            var mToggleLabel = CreateText(panel, "MusicToggleLabel", "Music Enable", 32);
-            mToggleLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-220, 50);
-            var mToggle = CreateToggle(panel, "MusicToggle");
-            mToggle.GetComponent<RectTransform>().anchoredPosition = new Vector2(120, 50);
-
-            var sToggleLabel = CreateText(panel, "SfxToggleLabel", "SFX Enable", 32);
-            sToggleLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-220, -50);
-            var sToggle = CreateToggle(panel, "SfxToggle");
-            sToggle.GetComponent<RectTransform>().anchoredPosition = new Vector2(120, -50);
-
-            var vToggleLabel = CreateText(panel, "VibrationToggleLabel", "Vibration", 32);
-            vToggleLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-220, -150);
+            // Vibration toggle
+            var vLabel = CreateText(panel, "VibrationLabel", "Vibration", 40);
+            vLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-180, -20);
             var vToggle = CreateToggle(panel, "VibrationToggle");
-            vToggle.GetComponent<RectTransform>().anchoredPosition = new Vector2(120, -150);
+            vToggle.GetComponent<RectTransform>().anchoredPosition = new Vector2(200, -20);
 
+            // Close button
             var close = CreateButton(panel, "CloseButton", "CLOSE");
-            close.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -350);
+            close.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -200);
             close.GetComponent<RectTransform>().sizeDelta = new Vector2(350, 90);
 
             var popup = go.GetComponent<SettingPopup>();
             ConfigureBaseUIView(popup, EUILayer.Popup, true, false);
 
             var serialized = new SerializedObject(popup);
-            serialized.FindProperty("_musicVolumeSlider").objectReferenceValue = mSlider;
-            serialized.FindProperty("_sfxVolumeSlider").objectReferenceValue = sSlider;
-            serialized.FindProperty("_musicToggle").objectReferenceValue = mToggle;
-            serialized.FindProperty("_sfxToggle").objectReferenceValue = sToggle;
-            serialized.FindProperty("_vibrationToggle").objectReferenceValue = vToggle;
-            serialized.FindProperty("_closeButton").objectReferenceValue = close;
+            serialized.FindProperty("_soundsToggle").objectReferenceValue     = soundsToggle;
+            serialized.FindProperty("_vibrationToggle").objectReferenceValue  = vToggle;
+            serialized.FindProperty("_closeButton").objectReferenceValue      = close;
             serialized.ApplyModifiedProperties();
 
             PrefabUtility.SaveAsPrefabAsset(go, SAVE_PATH + "SettingPopup.prefab");
