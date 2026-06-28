@@ -1,94 +1,69 @@
-# Project Handoff Documentation: Jelly Field Clone
+# Project Handoff — Jelly Field Clone (Unity)
 
-This document serves as a complete developer guide for continuing the development of the **Jelly Field Clone** project. It outlines the project's goal, architecture, current implementation state, key files, guidelines, and the immediate next steps.
+> **Đây là project CLONE game mobile "Jelly Field"** (match-color puzzle với khối thạch).
+> Bản gốc tham chiếu: `D:\APK\Jelly` (dump AssetRipper — script đã decompile thành **stub rỗng**,
+> nhưng **material / level / prefab / mesh dùng được**) + video gameplay gốc ở
+> `Assets\Video\YTDown_YouTube_Jelly-Field-Android-Gameplay_Media_bZssNybANA4_001_1080p.mp4`.
+>
+> ✅ **GAMEPLAY + VISUAL + FEEL ĐÃ ỔN ĐỊNH và được người dùng duyệt.** Việc TIẾP THEO là **chỉnh sửa
+> prefab UI** — KHÔNG cần đụng lại logic gameplay (chỉ chỉnh nếu UI yêu cầu). Giữ nguyên các hệ thống dưới.
 
----
-
-## 1. Project Goal & Target Resolution
-- **Goal**: Recreate the core gameplay of *Jelly Field*—a grid-based puzzle game with soft-jelly blocks, color combinations, block morphing, and cascading matches.
-- **Aspect Ratio**: Optimized exclusively for **1080x1920 mobile portrait** viewports. All UI layers and layouts must scale correctly and respect notch/safe-areas.
-- **Visuals**: Premium, clean look. 
-  - **Background**: Solid dark brown camera background (`#1F1A14`).
-  - **Grid Slots**: Rounded-corner dark purple-grey square slots (#201E26) with a thick lighter border outline (#322D3E).
-
----
-
-## 2. Core Architecture & Frameworks
-
-### NFramework (UI & Data Management)
-The project utilizes `NFramework` (located in `Assets/ThirdParty/nframework`) for UI loading and game managers:
-1. **Views/UI Panels**: All UI screens inherit from `BaseUIView` (which provides life-cycle methods like `OnOpen()` and `OnClose()`).
-   - `EUILayer.Menu` (e.g., [HomeMenu.cs](file:///d:/unity/MyGame/Jelly%20Field%20Clone/Assets/Game/Scripts/UI/Menu/HomeMenu.cs), [GamePlayMenu.cs](file:///d:/unity/MyGame/Jelly%20Field%20Clone/Assets/Game/Scripts/UI/Menu/GamePlayMenu.cs))
-   - `EUILayer.Popup` (e.g., [LoadingPopup.cs](file:///d:/unity/MyGame/Jelly%20Field%20Clone/Assets/Game/Scripts/UI/Popup/LoadingPopup.cs), [SettingPopup.cs](file:///d:/unity/MyGame/Jelly%20Field%20Clone/Assets/Game/Scripts/UI/Popup/SettingPopup.cs), [ResultPopup.cs](file:///d:/unity/MyGame/Jelly%20Field%20Clone/Assets/Game/Scripts/UI/Popup/ResultPopup.cs))
-2. **UIManager**: A global singleton `UIManager.I` used to load and open/close Views by string ID.
-3. **UIPrefabGenerator**: An Editor menu script ([UIPrefabGenerator.cs](file:///d:/unity/MyGame/Jelly%20Field%20Clone/Assets/Game/Scripts/Editor/UIPrefabGenerator.cs)) generates UI prefabs programmatically under `Assets/Game/Resources/UI/`.
-   - **Important**: Any modification to UI structure should be done by updating this generator script and executing the menu item `Game/Generate UI Prefabs` in Unity, rather than editing prefabs directly in the scene.
-4. **UserData**: Singleton handling save state, best scores, and coins. Integrates with `SaveManager` for automatic local persistence.
-
-### Manager Singletons
-- **GameManager**: Located in [GameManager.cs](file:///d:/unity/MyGame/Jelly%20Field%20Clone/Assets/Game/Scripts/Manager/GameManager.cs). Manages high-level state flow:
-  - `LOADING` -> `FIRST` -> `HOME` -> `INGAME` -> `RESET`
-  - Handles additive loading and unloading of the gameplay scene (`Game`).
-- **GameplayManager**: Located in [GameplayManager.cs](file:///d:/unity/MyGame/Jelly%20Field%20Clone/Assets/Game/Scripts/Manager/GameplayManager.cs). Manages local gameplay states:
-  - `NONE` -> `BEGIN` -> `PLAYING` -> `CHECK` -> `LOSE` -> `RESULT` -> `REVIVE`
+Unity URP, **color space = Linear**, mobile portrait. Mở scene `Main.unity` để chạy.
 
 ---
 
-## 3. Gameplay Mechanics & Implementation Details
+## 1. Luật chơi (đã clone)
+Match-color: board gồm các **ô (cell)**; mỗi ô chứa **1 khối jelly 2×2 sub-cell** (mỗi sub-cell 1 màu).
+Kéo khối từ **pickup slot** dưới đáy lên đặt vào ô board. Khi sub-cell **cùng màu của 2 khối kề nhau chạm
+nhau qua mép** → khớp và **triệt tiêu**. Đạt đủ số lượng từng màu mục tiêu (targets) thì **thắng**; board đầy
+mà chưa đạt thì **thua**. 20 level thiết kế tay, sau đó **chơi vô hạn (endless)**.
 
-### A. The 4x4 Grid Matrix ([JellyGrid.cs](file:///d:/unity/MyGame/Jelly%20Field%20Clone/Assets/Game/Scripts/Gameplay/JellyGrid.cs))
-- **Scale**: The grid slot GameObjects are scaled to `0.45f` (visual size: `0.9` Unity units).
-- **Spacing**: `slotStep` is `1.05f`, leaving an exact `0.15f` spacing gap between cells.
-- **Visuals**: Rounded purple square sprites with a thick `8f` border outline are dynamically drawn on a `128x128` texture at runtime.
-- **Initialization**: Starts completely empty on level launch.
-- **Match Logic**: Checks boundaries between adjacent cells orthogonally. If touching cells share the same color, they match and are queued for elimination.
-- **Cascading check**: A recursive loop keeps checking for new matches as empty cells fill and blocks morph.
+## 2. Kiến trúc & luồng
+- **NFramework** (`Assets/ThirdParty/nframework`): UI (`BaseUIView`, `UIManager.I`), `UserData`, `SaveManager`, `SingletonMono`.
+- **GameManager** (Main scene): `LOADING → FIRST → HOME → INGAME → RESET`. Lúc INGAME **load additively scene `Game`**.
+- **GameplayManager**: `NONE → BEGIN → PLAYING → CHECK → LOSE → RESULT → REVIVE`. Vào BEGIN thì spawn board.
+- **Test nhanh INGAME qua MCP** (vì phải qua HOME): reflection gọi `GameManager.EnterInGame()` rồi ẩn canvas tên `Menu`.
+  Board load **bất đồng bộ** (~1–1.5s) → query sau khi `SkinnedMeshRenderer` xuất hiện.
 
-### B. The 2x2 Cell Blocks ([JellyBlock.cs](file:///d:/unity/MyGame/Jelly%20Field%20Clone/Assets/Game/Scripts/Gameplay/JellyBlock.cs))
-- **Representation**: Blocks are a 2x2 grid of sub-cells, each having a string color ID (`blue`, `red`, `yellow`, `green`, `purple`) or null.
-- **Scale**: Root block GameObject is scaled to `0.45f` to match the background grid cells perfectly.
-- **Morphing Rules**:
-  1. If colors are eliminated from the block:
-  2. If **1 color** is left, the block morphs into a solid block (all 4 cells take that color).
-  3. If **2 or more colors** are left, empty cells are filled by copying the color of an adjacent cell in the block.
-  4. If **0 colors** are left, the block is destroyed.
-- **Visual Tweens**: Custom spring-mass feel bounce on landing, elastic breathing wiggles while idle, and stretch distortion while dragging.
+## 3. Hệ thống gameplay (ĐÃ ỔN ĐỊNH — đừng phá)
+- **Board / match / eliminate** — `Assets/Game/Scripts/Gameplay/JellyGrid.cs`
+  - Sinh ô từ `LevelData.ParseBoard()` (`0`=ô, `-`=lỗ); fill khối theo `fillSeed/fillRate/weights`.
+  - `slotStep=1.0`. Ô = prefab `Assets/PrefabInstance/Cell.prefab` (ô **xám sẫm bo góc**, màu sprite `Board (1)` = `0.235,0.255,0.295`).
+  - **`GridBackground` đã bị TẮT** (trước đó là tấm nền tối, cùng sortingOrder với ô → dưới camera nghiêng nó **sort đè che ô hàng trên thành đen**; tắt đi vừa hết che vừa bỏ nền đen quanh board).
+  - **Viền trắng preview khi kéo**: bắt child `"Ghost Highlight"` của mỗi ô → `ShowPlacementPreview/ClearPlacementPreview` (đặt highlight đồng phẳng + đúng tâm ô để không lệch dưới camera nghiêng).
+  - **Animation triệt tiêu**: sub-cell khớp màu **nổi lên + phồng → MERGE về mép chung giữa 2 khối → thu nhỏ biến mất** (`MarkMerge` truyền điểm mép; thực thi trong `JellyBlock.PopSubCellsAsync`).
+- **Khối jelly** — `Assets/Game/Scripts/Gameplay/JellyBlock.cs`
+  - 4 sub-cell đặt `localPosition ±0.21`, `localScale 0.54` → **chồng mép thành 1 khối bo góc liền mạch** (cùng màu liền, khác màu chia vùng — như gốc).
+  - **Màu**: 8 màu lấy đúng `_BaseColor` từ TCP2 của APK (`GetColorFromId`).
+  - **Shader**: `Assets/Game/Shaders/JellyCandy.shader` ("Jelly/Candy") — unlit "fake-lit" (half-lambert + specular + rim + saturation) → **màu rực + bóng kẹo dẻo + khối 3D**, render được trên SkinnedMeshRenderer (URP Lit/matcap cũ KHÔNG hợp: bị xám / không render trên skinned mesh).
+  - **Jelly wobble (rung như cục thạch khi kéo)**: lò xo "trailing" trong `LateUpdate` (`BeginDragWobble/EndDragWobble`); dừng tay thì **lắc qua lại vài nhịp "boing boing" rồi tắt**. Hằng số chỉnh: `WOBBLE_STIFF/DAMP/DRIVE/MAX/LEAN`.
+- **Kéo-thả / pickup** — `Assets/Game/Scripts/Gameplay/JellyLauncher.cs`
+  - Chiếu tia lên mặt board (đúng camera nghiêng), dùng **camera cùng scene Game** (KHÔNG `Camera.main` — xem gotcha).
+  - Khi nhấc: giữ offset điểm nắm, **nhấc block lên cao hơn ngón tay (DRAG_LIFT_Y) + về phía camera (z âm)** để không bị ngón tay che / hòa màu.
+  - **Ô đích tính theo VỊ TRÍ BLOCK** (chiếu tâm block xuống board `ProjectToBoard`), không theo vị trí chuột.
+  - Pickup slot visual scale `1.0` (vừa khít khối).
+- **Mục tiêu / thắng-thua** — `Assets/Game/Scripts/Gameplay/JellyGameManager.cs`
+  - Cờ `_resolved` đảm bảo **TriggerWin/TriggerLose chỉ chạy 1 lần/level** (trước đây fire nhiều lần → `CompleteLevel` +nhiều → **nhảy bậc level**; đã fix).
+- **Level / endless** — `Assets/Game/Scripts/Manager/LevelManager.cs`
+  - 20 `LevelData` (`Assets/Game/ScriptableObjects/Level_01..20.asset`) chơi theo thứ tự; **từ level 21 trở đi bốc ngẫu nhiên từ pool, xác định theo index** (ổn định khi retry, tránh lặp liền trước). **UI số level (`CurrentLevelIndex+1`) tăng vô hạn.**
 
-### C. The Launcher & Drag Snapping ([JellyLauncher.cs](file:///d:/unity/MyGame/Jelly%20Field%20Clone/Assets/Game/Scripts/Gameplay/JellyLauncher.cs))
-- **Randomizer**: Spawns block configurations with randomized sub-cell colors (1 solid color: 40%, 2 split colors: 40%, 4 split colors: 20%).
-- **Drag Interaction**: Mouse-to-world conversion. Drag selection radius is set to `1.0f`.
-- **Drag Scaling**: Swells to `1.15x` of current scale (`0.45f * 1.15f = 0.5175f`) when held, and shrinks back to `0.45f` when snapped or returned.
-- **Replenish Logic**: When a block is successfully placed on the grid, a replacement spawns in the launcher slot immediately.
+## 4. Camera & UI nổi (world-space)
+- Camera Game (`Assets/Game/Scenes/Game.unity`): **orthographic, nghiêng nhìn từ dưới lên** pitch **−15°**, pos `(0, −3.15, −12)`, `orthographic size 5.4`, clearFlags=SolidColor, **bg dark slate `(0.09,0.10,0.13)`**.
+- UI count/level là **world-space canvas** → dùng `Assets/Game/Scripts/UI/FaceCameraFlat.cs` để **luôn quay chính diện** (không nghiêng theo camera). `LevelTextUI` hiển thị `Level {CurrentLevelIndex+1}`.
 
----
+## 5. Gotchas (lưu ý khi làm tiếp)
+- **CÓ 2 camera tag `MainCamera`** (Main scene + Game scene) → `Camera.main` có thể trỏ NHẦM. Code gameplay/UI nên lấy **camera cùng scene** (xem `FaceCameraFlat.ResolveCamera`, `JellyLauncher.Cam`).
+- Mesh jelly (`Assets/PrefabInstance/Jelly.prefab`) là SkinnedMeshRenderer, AABB lệch — cẩn thận khi đổi scale/recenter.
+- Recompile khi đang Play sẽ **reset play mode** → MCP có thể báo "board not ready"; vào lại INGAME.
+- Frame video gốc đã trích bằng ffmpeg ở scratchpad (`frames/`, `frames2/`, `elim/`, `drag/`) — tham chiếu look/animation.
 
-## 4. Current Progress & Setup Status
-- The visual scaling has been successfully modified to fit a `1080x1920` layout cleanly.
-- The solid camera background has been styled to a warm dark brown `#1F1A14`.
-- Grid cell outlines have been thickened (`8f`) and adjusted to high contrast.
-- The `GamePlayMenu` HUD (scores, coins, booster, pause) has been completely stripped to provide a clean canvas for coding gameplay incrementally.
-- **The codebase currently compiles 100% cleanly (0 compile errors, 0 warnings).**
+## 6. Map file chính
+- Gameplay: `Assets/Game/Scripts/Gameplay/{JellyGrid,JellyBlock,JellyLauncher,JellyGameManager}.cs`
+- Manager: `Assets/Game/Scripts/Manager/{GameManager,GameplayManager,LevelManager}.cs`
+- Data: `Assets/Game/Scripts/Data/LevelData.cs`; SO: `Assets/Game/ScriptableObjects/Level_01..20.asset`
+- UI: `Assets/Game/Scripts/UI/**` (HomeMenu, GamePlayMenu, popups, LevelTextUI, GoalCounterUI, FaceCameraFlat) + `Editor/UIPrefabGenerator.cs`
+- Shader: `Assets/Game/Shaders/JellyCandy.shader`; Prefab: `Assets/PrefabInstance/{Cell,Jelly}.prefab`
+- Scene: `Assets/Game/Scenes/{Main,Game}.unity`
 
----
-
-## 5. Immediate Next Steps for Claude Code
-
-### Step 1: Consolidate to a Single Centered Spawn Point
-The gameplay scene `Game.unity` currently has two spawn slots: `SpawnSlot_0` (at `x: -1.5, y: -4.5`) and `SpawnSlot_1` (at `x: 1.5, y: -4.5`). The goal is to reduce this to only **one** centered spawn slot.
-
-#### Action Items in `Game.unity` (YAML Scene File):
-1. **Remove `SpawnSlot_1` GameObject**: Locate and delete the GameObject named `SpawnSlot_1` (fileID: `1865688191` / transform fileID: `1865688192`) and its reference in the scene root roots list.
-2. **Reposition and Rename `SpawnSlot_0`**:
-   - Rename `SpawnSlot_0` (fileID: `96466897` / transform fileID: `96466898`) to `SpawnSlot`.
-   - Change its `m_LocalPosition` to `{x: 0, y: -3.5, z: 0}` (or `{x: 0, y: -4.5, z: 0}`) so it sits centered below the 4x4 grid.
-3. **Update `JellyLauncher` Inspector references**:
-   - Locate the `JellyLauncher` component (fileID: `1648872170` on GameObject `1648872169`).
-   - Find the `_spawnSlots` array serialization.
-   - Resize the serialized array to **1 element** and set its first element target to point to `SpawnSlot`'s Transform (fileID: `96466898`).
-
-### Step 2: Verify Single Block Snapping Flow
-1. Open the project in Unity and enter Play Mode.
-2. Verify that only a single block spawns at the bottom center.
-3. Drag the block:
-   - If released over a valid grid slot, it snaps, and a new block spawns immediately at the spawn slot.
-   - If released over an invalid slot/empty space, it returns to the centered spawn slot.
+## 7. VIỆC TIẾP THEO: chỉnh sửa prefab UI
+Gameplay đã ổn → tập trung vào **UI** (HomeMenu, GamePlayMenu/HUD, các popup Win/Lose/Setting/Shop, goal counter, level text…). Lưu ý NFramework: cân nhắc chỉnh qua `UIPrefabGenerator` (menu `Game/Generate UI Prefabs`) HOẶC sửa prefab trực tiếp — kiểm tra cách dự án đang dùng trước khi sửa. **Không cần thay đổi logic gameplay** trừ khi UI yêu cầu data mới.

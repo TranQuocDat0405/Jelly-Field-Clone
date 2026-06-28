@@ -36,6 +36,10 @@ namespace Game.Data
         [Tooltip("Number of pickup slots shown to the player")]
         public int pickupSlots = 2;
 
+        [Header("Difficulty")]
+        [Tooltip("Hiển thị badge Hard Level trên HomeMenu")]
+        public bool isHard;
+
         [Header("Targets (colors to clear to win)")]
         public ColorTarget[] targets;
 

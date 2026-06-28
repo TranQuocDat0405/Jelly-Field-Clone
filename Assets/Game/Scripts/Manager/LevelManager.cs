@@ -28,10 +28,11 @@ namespace Game.Manager
         public int  TotalLevels => _levels != null ? _levels.Length : 0;
         public bool IsEndless   => _levels != null && CurrentLevelIndex >= _levels.Length;
 
-        private void Start()
+        protected override void Awake()
         {
+            base.Awake();
             CurrentLevelIndex = PlayerPrefs.GetInt("CurrentLevelIndex", 0);
-            if (CurrentLevelIndex < 0) CurrentLevelIndex = 0; // KHÔNG chặn trên → cho phép endless
+            if (CurrentLevelIndex < 0) CurrentLevelIndex = 0;
         }
 
         // Bốc 1 level từ pool theo index (xác định). Tránh lặp ngay level liền trước nếu có thể.

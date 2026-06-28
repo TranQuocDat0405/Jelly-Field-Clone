@@ -182,36 +182,116 @@ namespace Game.Editor
             return toggle;
         }
 
+        private static Sprite LoadSprite(string assetPath)
+        {
+            return AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
+        }
+
         private static void GenerateHomeMenu()
         {
             GameObject go = new GameObject("HomeMenu", typeof(RectTransform), typeof(HomeMenu));
             var rt = go.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(1080, 1920);
-
-            // Safe Area Component
             go.AddComponent<SafeArea>();
 
-            // Add title
-            var title = CreateText(go, "Title", "JELLY FIELD CLONE", 64);
-            title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 500);
+            // Background base (dark purple)
+            GameObject bg = new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            bg.transform.SetParent(go.transform, false);
+            var bgRt = bg.GetComponent<RectTransform>();
+            bgRt.anchorMin = Vector2.zero; bgRt.anchorMax = Vector2.one; bgRt.sizeDelta = Vector2.zero;
+            bg.GetComponent<Image>().color = new Color(0.10f, 0.06f, 0.18f, 1f);
 
-            // Add buttons
-            var play = CreateButton(go, "PlayButton", "PLAY");
-            var settings = CreateButton(go, "SettingsButton", "SETTINGS");
-            var shop = CreateButton(go, "ShopButton", "SHOP");
+            // Background gradient overlay (center glow effect)
+            GameObject bgGlow = new GameObject("BackgroundGlow", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            bgGlow.transform.SetParent(go.transform, false);
+            var bgGlowRt = bgGlow.GetComponent<RectTransform>();
+            bgGlowRt.anchorMin = Vector2.zero; bgGlowRt.anchorMax = Vector2.one; bgGlowRt.sizeDelta = Vector2.zero;
+            var bgGlowImg = bgGlow.GetComponent<Image>();
+            bgGlowImg.sprite = LoadSprite("Assets/Sprite/Background Gradient.asset");
+            bgGlowImg.color = new Color(0.35f, 0.15f, 0.70f, 0.30f);
+            bgGlowImg.preserveAspect = false;
 
-            // Position buttons vertically
-            play.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 0);
-            settings.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -160);
-            shop.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -320);
+            // Settings button (top-left, icon only)
+            GameObject settingsGo = new GameObject("SettingsButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            settingsGo.transform.SetParent(go.transform, false);
+            var settingsRt = settingsGo.GetComponent<RectTransform>();
+            settingsRt.sizeDelta = new Vector2(110, 110);
+            settingsRt.anchoredPosition = new Vector2(-460, 840);
+            var settingsImg = settingsGo.GetComponent<Image>();
+            settingsImg.sprite = LoadSprite("Assets/Sprite/ButtonSettings.asset");
+            settingsImg.preserveAspect = true;
+            var settingsBtn = settingsGo.GetComponent<Button>();
 
+            // Level circle group
+            GameObject circleGroup = new GameObject("LevelCircleGroup", typeof(RectTransform));
+            circleGroup.transform.SetParent(go.transform, false);
+            var circleRt = circleGroup.GetComponent<RectTransform>();
+            circleRt.sizeDelta = new Vector2(600, 600);
+            circleRt.anchoredPosition = new Vector2(0, 80);
+
+            // Arc background ring
+            GameObject progressBack = new GameObject("ProgressBack", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            progressBack.transform.SetParent(circleGroup.transform, false);
+            var pbRt = progressBack.GetComponent<RectTransform>();
+            pbRt.sizeDelta = new Vector2(600, 495);
+            var pbImg = progressBack.GetComponent<Image>();
+            pbImg.sprite = LoadSprite("Assets/Sprite/Lobby Hard Level Progress Back.asset");
+            pbImg.preserveAspect = false;
+
+            // Arc green fill
+            GameObject progressFill = new GameObject("ProgressFill", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            progressFill.transform.SetParent(circleGroup.transform, false);
+            var pfRt = progressFill.GetComponent<RectTransform>();
+            pfRt.sizeDelta = new Vector2(574, 470);
+            var pfImg = progressFill.GetComponent<Image>();
+            pfImg.sprite = LoadSprite("Assets/Sprite/Lobby Hard Level Progress.asset");
+            pfImg.preserveAspect = false;
+
+            // "LEVEL" label
+            var levelLabel = CreateText(circleGroup, "LevelLabel", "LEVEL", 50);
+            levelLabel.fontStyle = FontStyles.Bold;
+            levelLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 70);
+
+            // Level number (dynamic)
+            var levelNumber = CreateText(circleGroup, "LevelNumber", "1", 160);
+            levelNumber.fontStyle = FontStyles.Bold;
+            levelNumber.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -50);
+
+            // Hard Level Badge (below circle)
+            GameObject badgeGo = new GameObject("HardBadge", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            badgeGo.transform.SetParent(go.transform, false);
+            var badgeRt = badgeGo.GetComponent<RectTransform>();
+            badgeRt.sizeDelta = new Vector2(363, 260);
+            badgeRt.anchoredPosition = new Vector2(0, -220);
+            var badgeImg = badgeGo.GetComponent<Image>();
+            badgeImg.sprite = LoadSprite("Assets/Sprite/Lobby Hard Level Badge.asset");
+            badgeImg.preserveAspect = true;
+
+            // Play button
+            GameObject playGo = new GameObject("PlayButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            playGo.transform.SetParent(go.transform, false);
+            var playRt = playGo.GetComponent<RectTransform>();
+            playRt.sizeDelta = new Vector2(560, 140);
+            playRt.anchoredPosition = new Vector2(0, -730);
+            var playImg = playGo.GetComponent<Image>();
+            playImg.sprite = LoadSprite("Assets/Sprite/Button_green_shop.asset");
+            playImg.type = Image.Type.Sliced;
+            var playBtn = playGo.GetComponent<Button>();
+
+            var playText = CreateText(playGo, "Text", "PLAY", 72);
+            playText.fontStyle = FontStyles.Bold;
+            var playTextRt = playText.GetComponent<RectTransform>();
+            playTextRt.anchorMin = Vector2.zero; playTextRt.anchorMax = Vector2.one; playTextRt.sizeDelta = Vector2.zero;
+
+            // Wire fields
             var menu = go.GetComponent<HomeMenu>();
             ConfigureBaseUIView(menu, EUILayer.Menu, true, false);
 
             var serialized = new SerializedObject(menu);
-            serialized.FindProperty("_playButton").objectReferenceValue = play;
-            serialized.FindProperty("_settingsButton").objectReferenceValue = settings;
-            serialized.FindProperty("_shopButton").objectReferenceValue = shop;
+            serialized.FindProperty("_playButton").objectReferenceValue = playBtn;
+            serialized.FindProperty("_settingsButton").objectReferenceValue = settingsBtn;
+            serialized.FindProperty("_levelText").objectReferenceValue = levelNumber;
+            serialized.FindProperty("_hardBadge").objectReferenceValue = badgeGo;
             serialized.ApplyModifiedProperties();
 
             PrefabUtility.SaveAsPrefabAsset(go, SAVE_PATH + "HomeMenu.prefab");
