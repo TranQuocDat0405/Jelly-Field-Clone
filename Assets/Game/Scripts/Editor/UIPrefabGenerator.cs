@@ -465,45 +465,108 @@ namespace Game.Editor
 
         private static void GenerateWinPopup()
         {
+            const string SP = "Assets/Sprite/";
             GameObject go = new GameObject("WinPopup", typeof(RectTransform), typeof(Game.UI.WinPopup));
-            var rt = go.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(1080, 1920);
-
+            go.GetComponent<RectTransform>().sizeDelta = new Vector2(1080, 1920);
             go.AddComponent<SafeArea>();
 
-            // Semi-transparent overlay
-            GameObject overlay = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            // Dark overlay
+            var overlay = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             overlay.transform.SetParent(go.transform, false);
             var overlayRt = overlay.GetComponent<RectTransform>();
             overlayRt.anchorMin = Vector2.zero; overlayRt.anchorMax = Vector2.one; overlayRt.sizeDelta = Vector2.zero;
-            overlay.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
+            overlay.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.65f);
 
-            // Center panel (green)
-            GameObject panel = new GameObject("Panel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            // Gold glow behind panel
+            var glow = new GameObject("BackGlow", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            glow.transform.SetParent(go.transform, false);
+            var glowRt = glow.GetComponent<RectTransform>();
+            glowRt.anchoredPosition = new Vector2(0, 80);
+            glowRt.sizeDelta = new Vector2(720, 720);
+            var glowImg = glow.GetComponent<Image>();
+            glowImg.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SP + "light-effect-circ.asset");
+            glowImg.color = new Color(1f, 0.85f, 0.1f, 0.40f);
+
+            // Panel (window_back 9-sliced, dark navy)
+            var panel = new GameObject("Panel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             panel.transform.SetParent(go.transform, false);
-            panel.GetComponent<RectTransform>().sizeDelta = new Vector2(900, 1000);
-            panel.GetComponent<Image>().color = new Color(0.15f, 0.55f, 0.15f, 0.97f);
+            var panelRt = panel.GetComponent<RectTransform>();
+            panelRt.anchoredPosition = Vector2.zero;
+            panelRt.sizeDelta = new Vector2(860, 820);
+            var panelImg = panel.GetComponent<Image>();
+            panelImg.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SP + "window_back.asset");
+            panelImg.type = Image.Type.Sliced;
+            panelImg.color = new Color(0.10f, 0.13f, 0.22f);
 
-            // Title
-            var title = CreateText(panel, "TitleText", "Level Complete!", 64);
-            title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 320);
-            title.color = new Color(1f, 0.95f, 0.3f);
+            // Trophy icon
+            var trophy = new GameObject("TrophyIcon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            trophy.transform.SetParent(panel.transform, false);
+            var trophyRt = trophy.GetComponent<RectTransform>();
+            trophyRt.anchoredPosition = new Vector2(0, 275);
+            trophyRt.sizeDelta = new Vector2(200, 248);
+            trophy.GetComponent<Image>().sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SP + "Winstreak Icon_3.asset");
 
-            // Next Level button
+            // Title text (dynamic: "Level X Complete!")
+            var title = CreateText(panel, "TitleText", "Level Complete!", 52);
+            var titleRt = title.GetComponent<RectTransform>();
+            titleRt.anchoredPosition = new Vector2(0, 115);
+            titleRt.sizeDelta = new Vector2(720, 75);
+            title.fontStyle = FontStyles.Bold;
+            title.color = new Color(1f, 0.85f, 0.15f);
+
+            // Stars row
+            var starsRow = new GameObject("StarsRow", typeof(RectTransform));
+            starsRow.transform.SetParent(panel.transform, false);
+            var starsRt = starsRow.GetComponent<RectTransform>();
+            starsRt.anchoredPosition = new Vector2(0, 30);
+            starsRt.sizeDelta = new Vector2(500, 160);
+
+            var starSprite = AssetDatabase.LoadAssetAtPath<Sprite>(SP + "collectible-star.asset");
+            foreach (var (name, pos, size) in new (string, Vector2, Vector2)[] {
+                ("StarLeft",   new Vector2(-165, -10), new Vector2(110, 115)),
+                ("StarCenter", new Vector2(0,     15), new Vector2(140, 146)),
+                ("StarRight",  new Vector2( 165, -10), new Vector2(110, 115)),
+            }) {
+                var star = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                star.transform.SetParent(starsRow.transform, false);
+                var starRt = star.GetComponent<RectTransform>();
+                starRt.anchoredPosition = pos;
+                starRt.sizeDelta = size;
+                star.GetComponent<Image>().sprite = starSprite;
+            }
+
+            // NEXT LEVEL button (green, 9-sliced)
             var nextBtn = CreateButton(panel, "NextLevelButton", "NEXT LEVEL");
-            nextBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -100);
-            nextBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(560, 120);
-            nextBtn.GetComponent<Image>().color = new Color(0.2f, 0.75f, 0.2f);
+            var nextRt = nextBtn.GetComponent<RectTransform>();
+            nextRt.anchoredPosition = new Vector2(0, -130);
+            nextRt.sizeDelta = new Vector2(540, 120);
+            var nextImg = nextBtn.GetComponent<Image>();
+            nextImg.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SP + "Button_green_shop.asset");
+            nextImg.type = Image.Type.Sliced;
+            nextImg.color = Color.white;
+            var nextTxt = nextBtn.GetComponentInChildren<TextMeshProUGUI>();
+            nextTxt.text = "NEXT LEVEL";
+            nextTxt.color = Color.white;
+            nextTxt.fontSize = 42;
+            nextTxt.fontStyle = FontStyles.Bold;
 
-            // Home button
+            // HOME button (blue, 9-sliced)
             var homeBtn = CreateButton(panel, "HomeButton", "HOME");
-            homeBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -260);
-            homeBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(560, 120);
-            homeBtn.GetComponent<Image>().color = new Color(0.3f, 0.3f, 0.5f);
+            var homeRt = homeBtn.GetComponent<RectTransform>();
+            homeRt.anchoredPosition = new Vector2(0, -280);
+            homeRt.sizeDelta = new Vector2(540, 120);
+            var homeImg = homeBtn.GetComponent<Image>();
+            homeImg.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SP + "Button_blue_shop.asset");
+            homeImg.type = Image.Type.Sliced;
+            homeImg.color = Color.white;
+            var homeTxt = homeBtn.GetComponentInChildren<TextMeshProUGUI>();
+            homeTxt.text = "HOME";
+            homeTxt.color = Color.white;
+            homeTxt.fontSize = 42;
+            homeTxt.fontStyle = FontStyles.Bold;
 
             var popup = go.GetComponent<Game.UI.WinPopup>();
             ConfigureBaseUIView(popup, EUILayer.Popup, true, false);
-
             var serialized = new SerializedObject(popup);
             serialized.FindProperty("_titleText").objectReferenceValue = title;
             serialized.FindProperty("_nextLevelButton").objectReferenceValue = nextBtn;
@@ -516,45 +579,102 @@ namespace Game.Editor
 
         private static void GenerateLosePopup()
         {
+            const string SP = "Assets/Sprite/";
             GameObject go = new GameObject("LosePopup", typeof(RectTransform), typeof(Game.UI.LosePopup));
-            var rt = go.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(1080, 1920);
-
+            go.GetComponent<RectTransform>().sizeDelta = new Vector2(1080, 1920);
             go.AddComponent<SafeArea>();
 
-            // Semi-transparent overlay
-            GameObject overlay = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            // Dark overlay
+            var overlay = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             overlay.transform.SetParent(go.transform, false);
             var overlayRt = overlay.GetComponent<RectTransform>();
             overlayRt.anchorMin = Vector2.zero; overlayRt.anchorMax = Vector2.one; overlayRt.sizeDelta = Vector2.zero;
-            overlay.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
+            overlay.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.65f);
 
-            // Center panel (dark red)
-            GameObject panel = new GameObject("Panel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            // Red glow behind panel
+            var glow = new GameObject("BackGlow", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            glow.transform.SetParent(go.transform, false);
+            var glowRt = glow.GetComponent<RectTransform>();
+            glowRt.anchoredPosition = new Vector2(0, 80);
+            glowRt.sizeDelta = new Vector2(620, 620);
+            var glowImg = glow.GetComponent<Image>();
+            glowImg.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SP + "light-effect-circ.asset");
+            glowImg.color = new Color(0.9f, 0.2f, 0.15f, 0.35f);
+
+            // Panel (window_back 9-sliced, dark)
+            var panel = new GameObject("Panel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             panel.transform.SetParent(go.transform, false);
-            panel.GetComponent<RectTransform>().sizeDelta = new Vector2(900, 1000);
-            panel.GetComponent<Image>().color = new Color(0.5f, 0.1f, 0.1f, 0.97f);
+            var panelRt = panel.GetComponent<RectTransform>();
+            panelRt.anchoredPosition = Vector2.zero;
+            panelRt.sizeDelta = new Vector2(860, 800);
+            var panelImg = panel.GetComponent<Image>();
+            panelImg.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SP + "window_back.asset");
+            panelImg.type = Image.Type.Sliced;
+            panelImg.color = new Color(0.10f, 0.10f, 0.18f);
 
-            // Title
-            var title = CreateText(panel, "TitleText", "Level Failed", 64);
-            title.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 320);
-            title.color = new Color(1f, 0.4f, 0.4f);
+            // Broken heart (left piece)
+            var heartL = new GameObject("HeartLeft", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            heartL.transform.SetParent(panel.transform, false);
+            var heartLRt = heartL.GetComponent<RectTransform>();
+            heartLRt.anchoredPosition = new Vector2(-60, 260);
+            heartLRt.sizeDelta = new Vector2(165, 274);
+            heartL.GetComponent<Image>().sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SP + "BrokenHeartIcon _left.asset");
 
-            // Retry button
+            // Broken heart (right piece)
+            var heartR = new GameObject("HeartRight", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            heartR.transform.SetParent(panel.transform, false);
+            var heartRRt = heartR.GetComponent<RectTransform>();
+            heartRRt.anchoredPosition = new Vector2(60, 260);
+            heartRRt.sizeDelta = new Vector2(165, 286);
+            heartR.GetComponent<Image>().sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SP + "BrokenHeartIcon _right.asset");
+
+            // Title "LEVEL FAILED"
+            var title = CreateText(panel, "TitleText", "LEVEL FAILED", 52);
+            var titleRt = title.GetComponent<RectTransform>();
+            titleRt.anchoredPosition = new Vector2(0, 95);
+            titleRt.sizeDelta = new Vector2(720, 75);
+            title.fontStyle = FontStyles.Bold;
+            title.color = new Color(1f, 0.35f, 0.25f);
+
+            // Subtitle (static decoration)
+            var subtitle = CreateText(panel, "SubtitleText", "Better luck next time!", 34);
+            var subtitleRt = subtitle.GetComponent<RectTransform>();
+            subtitleRt.anchoredPosition = new Vector2(0, 25);
+            subtitleRt.sizeDelta = new Vector2(680, 55);
+            subtitle.color = new Color(0.72f, 0.72f, 0.82f);
+
+            // RETRY button (red, 9-sliced)
             var retryBtn = CreateButton(panel, "RetryButton", "RETRY");
-            retryBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -100);
-            retryBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(560, 120);
-            retryBtn.GetComponent<Image>().color = new Color(0.8f, 0.25f, 0.25f);
+            var retryRt = retryBtn.GetComponent<RectTransform>();
+            retryRt.anchoredPosition = new Vector2(0, -120);
+            retryRt.sizeDelta = new Vector2(540, 120);
+            var retryImg = retryBtn.GetComponent<Image>();
+            retryImg.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SP + "Button_red.asset");
+            retryImg.type = Image.Type.Sliced;
+            retryImg.color = Color.white;
+            var retryTxt = retryBtn.GetComponentInChildren<TextMeshProUGUI>();
+            retryTxt.text = "RETRY";
+            retryTxt.color = Color.white;
+            retryTxt.fontSize = 42;
+            retryTxt.fontStyle = FontStyles.Bold;
 
-            // Home button
+            // HOME button (blue, 9-sliced)
             var homeBtn = CreateButton(panel, "HomeButton", "HOME");
-            homeBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -260);
-            homeBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(560, 120);
-            homeBtn.GetComponent<Image>().color = new Color(0.3f, 0.3f, 0.5f);
+            var homeRt = homeBtn.GetComponent<RectTransform>();
+            homeRt.anchoredPosition = new Vector2(0, -270);
+            homeRt.sizeDelta = new Vector2(540, 120);
+            var homeImg = homeBtn.GetComponent<Image>();
+            homeImg.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SP + "Button_blue_shop.asset");
+            homeImg.type = Image.Type.Sliced;
+            homeImg.color = Color.white;
+            var homeTxt = homeBtn.GetComponentInChildren<TextMeshProUGUI>();
+            homeTxt.text = "HOME";
+            homeTxt.color = Color.white;
+            homeTxt.fontSize = 42;
+            homeTxt.fontStyle = FontStyles.Bold;
 
             var popup = go.GetComponent<Game.UI.LosePopup>();
             ConfigureBaseUIView(popup, EUILayer.Popup, true, false);
-
             var serialized = new SerializedObject(popup);
             serialized.FindProperty("_titleText").objectReferenceValue = title;
             serialized.FindProperty("_retryButton").objectReferenceValue = retryBtn;
